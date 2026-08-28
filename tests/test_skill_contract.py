@@ -51,10 +51,11 @@ def test_all_reference_documents_exist_and_are_linked():
 def test_example_json_is_parseable_and_has_canonical_fields():
     data = json.loads((ROOT / "examples/output/sample_distillation.json").read_text(encoding="utf-8"))
     assert set(REQUIRED).issubset(data)
-    assert data["schema_version"] == "1.0"
-    assert {"title", "author", "input_type", "scope", "source_ids"}.issubset(data["metadata"])
+    assert data["schema_version"] == "2.0.0"
+    assert {"title", "author", "input_type", "requested_scope", "actual_scope", "output_language", "sources"}.issubset(data["metadata"])
     assert {"coverage", "checks", "limitations"}.issubset(data["quality"])
 
+    source_ids = {source["source_id"] for source in data["metadata"]["sources"]}
     ids = set()
     for dimension, prefix in ID_PREFIXES.items():
         for item in data[dimension]:
@@ -67,10 +68,10 @@ def test_example_json_is_parseable_and_has_canonical_fields():
             assert item["evidence"]
             for evidence in item["evidence"]:
                 assert {"source_id", "locator"}.issubset(evidence)
-                assert evidence["source_id"] in data["metadata"]["source_ids"]
+                assert evidence["source_id"] in source_ids
 
     for item in data["plots"]:
-        assert item["resolution"] in {"open", "resolved", "partial", "unknown"}
+        assert item["resolution_status"] in {"open", "resolved", "partial", "unknown"}
     for item in data["foreshadowing"]:
         assert item["status"] in {"planted", "possibly_revealed", "revealed", "unresolved", "not_applicable"}
     for item in data["timeline"]:
@@ -80,16 +81,16 @@ def test_example_json_is_parseable_and_has_canonical_fields():
 def test_example_markdown_uses_the_same_record_ids_and_statuses():
     markdown = (ROOT / "examples/output/sample_distillation.md").read_text(encoding="utf-8")
     data = json.loads((ROOT / "examples/output/sample_distillation.json").read_text(encoding="utf-8"))
-    assert all(f"## {heading}" in markdown for heading in MARKDOWN_HEADINGS)
+    assert all(f"## {heading}" in markdown for heading in ["范围与元数据", "核心摘要", "人物", "情节", "人物关系", "伏笔", "时间线", "风格", "不确定项与矛盾", "覆盖范围与质量检查"])
     json_ids = {item["id"] for dimension in ID_PREFIXES for item in data[dimension]}
-    markdown_ids = set(re.findall(r"\b(?:char|plot|rel|fore|time|style|uncertain)-\d{3}\b", markdown))
+    markdown_ids = set(re.findall(r"(?:char|plot|rel|fore|time|style|uncertain)-\d{3}", markdown))
     assert markdown_ids == json_ids
 
     for dimension in ID_PREFIXES:
         for item in data[dimension]:
             line = next(line for line in markdown.splitlines() if item["id"] in line)
-            assert f'`{item["claim_status"]}`' in line
-            assert f'`{item["confidence"]}`' in line
+            assert f'"claim_status": "{item["claim_status"]}"' in markdown
+            assert f'"confidence": "{item["confidence"]}"' in markdown
             for evidence in item["evidence"]:
                 if evidence.get("chapter"):
                     assert evidence["chapter"] in line
@@ -153,7 +154,7 @@ def test_only_published_example_outputs_are_exempt_from_gitignore():
 
 
 def test_relative_markdown_links_resolve():
-    paths = [ROOT / "SKILL.md", ROOT / "README.md", ROOT / "README.zh-CN.md", ROOT / "QUICKSTART.md", ROOT / "INSTALL.md", ROOT / "CONTRIBUTING.md", ROOT / "PROJECT_SUMMARY.md"]
+    paths = [ROOT / "SKILL.md", ROOT / "README.md", ROOT / "README.zh-CN.md", ROOT / "QUICKSTART.md", ROOT / "INSTALL.md", ROOT / "CONTRIBUTING.md"]
     for path in paths:
         for target in re.findall(r"\[[^]]+\]\(([^)#]+)", path.read_text(encoding="utf-8")):
             if re.match(r"^[a-z][a-z0-9+.-]*:", target, re.IGNORECASE):

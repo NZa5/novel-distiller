@@ -54,18 +54,12 @@ def main():
         action="store_true",
         help="不检测伏笔 (Phase 2)"
     )
-    distill_parser.add_argument(
-        "--api-key",
-        help="OpenAI API Key（覆盖环境变量）"
-    )
-    distill_parser.add_argument(
-        "--base-url",
-        help="API 基础 URL（覆盖环境变量）"
-    )
-    distill_parser.add_argument(
-        "--model",
-        help="模型名称（覆盖环境变量）"
-    )
+    distill_parser.add_argument("--allow-remote", action="store_true", help="明确允许远程 provider")
+    distill_parser.add_argument("--allow-host", action="append", default=[], help="允许的 provider 主机名（可重复）")
+    distill_parser.add_argument("--config", type=Path, help="显式 dotenv 配置文件")
+    distill_parser.add_argument("--base-url", help="API 基础 URL（仅显式远程模式）")
+    distill_parser.add_argument("--model", help="模型名称（仅显式远程模式）")
+
 
     # batch 命令
     batch_parser = subparsers.add_parser("batch", help="批量蒸馏")
@@ -103,12 +97,19 @@ def main():
             sys.exit(1)
 
         try:
-            # 初始化蒸馏器
-            distiller = NovelDistiller(
-                api_key=args.api_key,
-                base_url=args.base_url,
-                model=args.model,
-            )
+            if not args.allow_remote:
+                raise ValueError("ND-REMOTE-DISALLOWED")
+            if args.config:
+                from dotenv import dotenv_values
+                values = dotenv_values(args.config)
+                import os
+                for key in ("OPENAI_API_KEY", "OPENAI_BASE_URL", "OPENAI_MODEL"):
+                    if values.get(key) is not None:
+                        os.environ[key] = values[key]
+            from novel_distiller.utils.llm_client import RemotePolicy
+            policy = RemotePolicy(args.allow_remote, frozenset(args.allow_host or {"api.openai.com"}))
+            distiller = NovelDistiller(remote_policy=policy, base_url=args.base_url, model=args.model)
+
 
             # 蒸馏小说
             result = distiller.distill_novel(
@@ -126,10 +127,8 @@ def main():
                 print(f"\n✅ 结果已导出到: {args.output}")
 
         except Exception as e:
-            print(f"❌ 蒸馏失败: {e}")
-            if args.verbose:
-                import traceback
-                traceback.print_exc()
+            print(f"❌ 蒸馏失败: ND-TOOL-ERROR ({type(e).__name__})")
+
             sys.exit(1)
 
     elif args.command == "batch":

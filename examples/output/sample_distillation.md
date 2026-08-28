@@ -8,7 +8,7 @@
   "actual_scope": "full\\_text",
   "author": null,
   "input_type": "attachment",
-  "output_language": "zh\\-CN",
+  "output_language": "zh-CN",
   "requested_focus": [
     "characters",
     "plots",
@@ -22,23 +22,23 @@
     {
       "chapters": [
         {
-          "chapter_id": "ch\\-001",
+          "chapter_id": "ch-001",
           "title": "站台"
         }
       ],
       "chunks": [
         {
-          "chapter_id": "ch\\-001",
-          "chunk_id": "chunk\\-001",
+          "chapter_id": "ch-001",
+          "chunk_id": "chunk-001",
           "span": {
             "type": "paragraph",
-            "value": "p001\\-p003"
+            "value": "p001-p003"
           }
         }
       ],
       "fingerprint": null,
       "readable": true,
-      "source_id": "source\\-001",
+      "source_id": "source-001",
       "type": "attachment"
     }
   ],
@@ -65,14 +65,14 @@
       "confidence": "medium",
       "evidence": [
         {
-          "chapter_id": "ch\\-001",
-          "chunk_id": "chunk\\-001",
+          "chapter_id": "ch-001",
+          "chunk_id": "chunk-001",
           "locator": {
             "type": "paragraph",
             "value": "p001"
           },
           "purpose": "support",
-          "source_id": "source\\-001"
+          "source_id": "source-001"
         }
       ],
       "notes": null,
@@ -83,15 +83,15 @@
     "description": "调查者",
     "evidence": [
       {
-        "chapter_id": "ch\\-001",
-        "chunk_id": "chunk\\-001",
+        "chapter_id": "ch-001",
+        "chunk_id": "chunk-001",
         "locator": {
           "type": "paragraph",
           "value": "p001"
         },
         "purpose": "support",
         "quote": "雨落在站台上",
-        "source_id": "source\\-001"
+        "source_id": "source-001"
       }
     ],
     "first_appearance": {
@@ -104,21 +104,21 @@
         "confidence": "medium",
         "evidence": [
           {
-            "chapter_id": "ch\\-001",
-            "chunk_id": "chunk\\-001",
+            "chapter_id": "ch-001",
+            "chunk_id": "chunk-001",
             "locator": {
               "type": "paragraph",
               "value": "p001"
             },
             "purpose": "support",
-            "source_id": "source\\-001"
+            "source_id": "source-001"
           }
         ],
         "notes": null,
         "text": "寻找真相"
       }
     ],
-    "id": "char\\-001",
+    "id": "char-001",
     "name": "林舟",
     "notes": null,
     "role": "protagonist",
@@ -128,14 +128,14 @@
         "confidence": "medium",
         "evidence": [
           {
-            "chapter_id": "ch\\-001",
-            "chunk_id": "chunk\\-001",
+            "chapter_id": "ch-001",
+            "chunk_id": "chunk-001",
             "locator": {
               "type": "paragraph",
               "value": "p001"
             },
             "purpose": "support",
-            "source_id": "source\\-001"
+            "source_id": "source-001"
           }
         ],
         "notes": null,
@@ -150,14 +150,14 @@
       "confidence": "medium",
       "evidence": [
         {
-          "chapter_id": "ch\\-001",
-          "chunk_id": "chunk\\-001",
+          "chapter_id": "ch-001",
+          "chunk_id": "chunk-001",
           "locator": {
             "type": "paragraph",
             "value": "p001"
           },
           "purpose": "support",
-          "source_id": "source\\-001"
+          "source_id": "source-001"
         }
       ],
       "notes": null,
@@ -168,14 +168,14 @@
     "description": "失踪者",
     "evidence": [
       {
-        "chapter_id": "ch\\-001",
-        "chunk_id": "chunk\\-001",
+        "chapter_id": "ch-001",
+        "chunk_id": "chunk-001",
         "locator": {
           "type": "paragraph",
           "value": "p001"
         },
         "purpose": "support",
-        "source_id": "source\\-001"
+        "source_id": "source-001"
       }
     ],
     "first_appearance": {
@@ -183,7 +183,7 @@
       "value": "p001"
     },
     "goals": [],
-    "id": "char\\-002",
+    "id": "char-002",
     "name": "林遥",
     "notes": null,
     "role": "supporting",
@@ -204,14 +204,14 @@
         "confidence": "medium",
         "evidence": [
           {
-            "chapter_id": "ch\\-001",
-            "chunk_id": "chunk\\-001",
+            "chapter_id": "ch-001",
+            "chunk_id": "chunk-001",
             "locator": {
               "type": "paragraph",
               "value": "p001"
             },
             "purpose": "support",
-            "source_id": "source\\-001"
+            "source_id": "source-001"
           }
         ],
         "notes": null,
@@ -226,14 +226,14 @@
         "confidence": "medium",
         "evidence": [
           {
-            "chapter_id": "ch\\-001",
-            "chunk_id": "chunk\\-001",
+            "chapter_id": "ch-001",
+            "chunk_id": "chunk-001",
             "locator": {
               "type": "paragraph",
               "value": "p001"
             },
             "purpose": "support",
-            "source_id": "source\\-001"
+            "source_id": "source-001"
           }
         ],
         "notes": null,
@@ -242,23 +242,23 @@
     ],
     "evidence": [
       {
-        "chapter_id": "ch\\-001",
-        "chunk_id": "chunk\\-001",
+        "chapter_id": "ch-001",
+        "chunk_id": "chunk-001",
         "locator": {
           "type": "paragraph",
           "value": "p001"
         },
         "purpose": "support",
-        "source_id": "source\\-001"
+        "source_id": "source-001"
       }
     ],
-    "id": "plot\\-001",
+    "id": "plot-001",
     "locations": [
       "车站"
     ],
     "notes": null,
     "participants": [
-      "char\\-001"
+      "char-001"
     ],
     "resolution_status": "open",
     "summary": "寻找线索",
@@ -268,14 +268,14 @@
       "confidence": "medium",
       "evidence": [
         {
-          "chapter_id": "ch\\-001",
-          "chunk_id": "chunk\\-001",
+          "chapter_id": "ch-001",
+          "chunk_id": "chunk-001",
           "locator": {
             "type": "paragraph",
             "value": "p001"
           },
           "purpose": "support",
-          "source_id": "source\\-001"
+          "source_id": "source-001"
         }
       ],
       "notes": null,
@@ -298,22 +298,22 @@
     "direction": "mutual",
     "evidence": [
       {
-        "chapter_id": "ch\\-001",
-        "chunk_id": "chunk\\-001",
+        "chapter_id": "ch-001",
+        "chunk_id": "chunk-001",
         "locator": {
           "type": "paragraph",
           "value": "p001"
         },
         "purpose": "support",
-        "source_id": "source\\-001"
+        "source_id": "source-001"
       }
     ],
     "evolution": [],
-    "id": "rel\\-001",
+    "id": "rel-001",
     "notes": null,
-    "source_character_id": "char\\-001",
+    "source_character_id": "char-001",
     "strength": "strong",
-    "target_character_id": "char\\-002",
+    "target_character_id": "char-002",
     "type": "siblings"
   }
 ]
@@ -329,17 +329,17 @@
     "confidence": "medium",
     "evidence": [
       {
-        "chapter_id": "ch\\-001",
-        "chunk_id": "chunk\\-001",
+        "chapter_id": "ch-001",
+        "chunk_id": "chunk-001",
         "locator": {
           "type": "paragraph",
           "value": "p001"
         },
         "purpose": "setup",
-        "source_id": "source\\-001"
+        "source_id": "source-001"
       }
     ],
-    "id": "fore\\-001",
+    "id": "fore-001",
     "notes": null,
     "payoff": null,
     "setup": {
@@ -347,14 +347,14 @@
       "confidence": "medium",
       "evidence": [
         {
-          "chapter_id": "ch\\-001",
-          "chunk_id": "chunk\\-001",
+          "chapter_id": "ch-001",
+          "chunk_id": "chunk-001",
           "locator": {
             "type": "paragraph",
             "value": "p001"
           },
           "purpose": "support",
-          "source_id": "source\\-001"
+          "source_id": "source-001"
         }
       ],
       "notes": null,
@@ -378,23 +378,23 @@
     "event": "到达车站",
     "evidence": [
       {
-        "chapter_id": "ch\\-001",
-        "chunk_id": "chunk\\-001",
+        "chapter_id": "ch-001",
+        "chunk_id": "chunk-001",
         "locator": {
           "type": "paragraph",
           "value": "p001"
         },
         "purpose": "support",
-        "source_id": "source\\-001"
+        "source_id": "source-001"
       }
     ],
     "explicit_time": null,
-    "id": "time\\-001",
+    "id": "time-001",
     "mode": "linear",
     "narration_position": 1,
     "notes": null,
     "participants": [
-      "char\\-001"
+      "char-001"
     ],
     "relative_time": "调查开始"
   }
@@ -412,17 +412,17 @@
     "confidence": "medium",
     "evidence": [
       {
-        "chapter_id": "ch\\-001",
-        "chunk_id": "chunk\\-001",
+        "chapter_id": "ch-001",
+        "chunk_id": "chunk-001",
         "locator": {
           "type": "paragraph",
           "value": "p001"
         },
         "purpose": "style\\_example",
-        "source_id": "source\\-001"
+        "source_id": "source-001"
       }
     ],
-    "id": "style\\-001",
+    "id": "style-001",
     "notes": null,
     "observation": "限知视角",
     "scope": "全部输入"
@@ -446,20 +446,20 @@
     "description": "下落未知",
     "evidence": [
       {
-        "chapter_id": "ch\\-001",
-        "chunk_id": "chunk\\-001",
+        "chapter_id": "ch-001",
+        "chunk_id": "chunk-001",
         "locator": {
           "type": "paragraph",
           "value": "p001"
         },
         "purpose": "contradiction",
-        "source_id": "source\\-001"
+        "source_id": "source-001"
       }
     ],
-    "id": "uncertain\\-001",
+    "id": "uncertain-001",
     "notes": "输入没有结局",
     "related_ids": [
-      "plot\\-001"
+      "plot-001"
     ]
   }
 ]

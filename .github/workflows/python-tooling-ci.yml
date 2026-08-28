@@ -1,0 +1,20 @@
+name: Optional Python tooling CI
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline:
+    strategy:
+      matrix: {python-version: ['3.9', '3.11', '3.13']}
+    runs-on: ubuntu-latest
+    env: {OPENAI_API_KEY: '', OPENAI_BASE_URL: '', OPENAI_MODEL: ''}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5
+        with: {python-version: '${{ matrix.python-version }}'}
+      - run: pip install -e 'optional-tooling/python[test]'
+      - run: pytest -q optional-tooling/python/tests -m "not live_api"
+      - run: python -m compileall -q optional-tooling/python/novel_distiller

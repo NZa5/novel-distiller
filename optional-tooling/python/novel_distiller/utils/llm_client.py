@@ -3,13 +3,36 @@ LLM 客户端封装
 """
 
 import os
-from typing import Optional, Dict, Any
-from dotenv import load_dotenv
+from dataclasses import dataclass
+from typing import Optional, Dict, Any, Iterable
+from urllib.parse import urlparse
+from ipaddress import ip_address
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
-# 加载环境变量
-load_dotenv()
+
+@dataclass(frozen=True)
+class RemotePolicy:
+    allow_remote: bool = False
+    allowed_hosts: frozenset[str] = frozenset({"api.openai.com"})
+
+
+def validate_endpoint(endpoint: str, policy: RemotePolicy):
+    parsed = urlparse(endpoint)
+    host = (parsed.hostname or "").lower()
+    if not policy.allow_remote:
+        raise ValueError("ND-REMOTE-DISALLOWED")
+    if parsed.scheme != "https" or parsed.username or parsed.password or not host:
+        raise ValueError("ND-REMOTE-ENDPOINT")
+    if host not in {h.lower() for h in policy.allowed_hosts}:
+        raise ValueError("ND-REMOTE-HOST")
+    try:
+        addr = ip_address(host)
+    except ValueError:
+        addr = None
+    if addr is not None and (addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved):
+        raise ValueError("ND-REMOTE-ENDPOINT")
+    return parsed
 
 
 class LLMClient:
@@ -22,6 +45,8 @@ class LLMClient:
         model: Optional[str] = None,
         temperature: float = 0.3,
         max_tokens: int = 4000,
+        policy: Optional[RemotePolicy] = None,
+        allow_remote: bool = False,
     ):
         """
         初始化 LLM 客户端
@@ -36,11 +61,13 @@ class LLMClient:
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         self.base_url = base_url or os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
         self.model = model or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+        self.policy = policy or RemotePolicy(allow_remote=allow_remote)
+        validate_endpoint(self.base_url, self.policy)
+
         self.temperature = temperature
         self.max_tokens = max_tokens
-        
         if not self.api_key:
-            raise ValueError("API Key 未设置，请在 .env 文件中配置 OPENAI_API_KEY")
+            raise ValueError("ND-CREDENTIAL-MISSING")
         
         # 初始化 ChatOpenAI
         self.llm = ChatOpenAI(
@@ -51,67 +78,23 @@ class LLMClient:
             max_tokens=self.max_tokens,
         )
     
-    def invoke(
-        self,
-        prompt: str,
-        system_message: Optional[str] = None,
-        **kwargs
-    ) -> str:
-        """
-        调用 LLM
-        
-        Args:
-            prompt: 用户提示词
-            system_message: 系统消息
-            **kwargs: 其他参数
-        
-        Returns:
-            LLM 响应文本
-        """
-        messages = []
-        
-        if system_message:
-            messages.append(SystemMessage(content=system_message))
-        
-        messages.append(HumanMessage(content=prompt))
-        
-        response = self.llm.invoke(messages, **kwargs)
+    def invoke_messages(self, messages: Iterable[BaseMessage], **kwargs) -> str:
+        response = self.llm.invoke(list(messages), **kwargs)
         return response.content
-    
-    def invoke_json(
-        self,
-        prompt: str,
-        system_message: Optional[str] = None,
-        **kwargs
-    ) -> Dict[str, Any]:
-        """
-        调用 LLM 并返回 JSON
-        
-        Args:
-            prompt: 用户提示词
-            system_message: 系统消息
-            **kwargs: 其他参数
-        
-        Returns:
-            解析后的 JSON 对象
-        """
+
+    def invoke(self, prompt: str, system_message: Optional[str] = None, **kwargs) -> str:
+        messages = ([SystemMessage(content=system_message)] if system_message else []) + [HumanMessage(content=prompt)]
+        return self.invoke_messages(messages, **kwargs)
+
+    def invoke_json_messages(self, messages: Iterable[BaseMessage], **kwargs) -> Dict[str, Any]:
         import json
-        
-        # 添加 JSON 格式要求
-        json_prompt = f"{prompt}\n\n请以 JSON 格式返回结果，不要包含任何其他文本。"
-        
-        response = self.invoke(json_prompt, system_message, **kwargs)
-        
-        # 尝试提取 JSON
         try:
-            # 查找 JSON 代码块
-            if "```json" in response:
-                json_str = response.split("```json")[1].split("```")[0].strip()
-            elif "```" in response:
-                json_str = response.split("```")[1].split("```")[0].strip()
-            else:
-                json_str = response.strip()
-            
-            return json.loads(json_str)
-        except (json.JSONDecodeError, IndexError) as e:
-            raise ValueError(f"无法解析 JSON 响应: {e}\n响应内容: {response}")
+            response = self.invoke_messages(messages, **kwargs)
+            text = response.split("```json", 1)[1].split("```", 1)[0].strip() if "```json" in response else response.strip()
+            return json.loads(text)
+        except (json.JSONDecodeError, IndexError, TypeError):
+            raise ValueError("ND-MODEL-JSON: invalid provider response") from None
+
+    def invoke_json(self, prompt: str, system_message: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+        json_prompt = f"{prompt}\n\n请以 JSON 格式返回结果，不要包含任何其他文本。"
+        return self.invoke_json_messages(([SystemMessage(content=system_message)] if system_message else []) + [HumanMessage(content=json_prompt)], **kwargs)

@@ -7,6 +7,8 @@ from typing import List, Optional, Tuple
 from ebooklib import epub
 from ebooklib import ITEM_DOCUMENT
 from bs4 import BeautifulSoup
+from novel_distiller.utils.safe_text import sanitize_plain_text
+from .epub_security import preflight_epub
 
 
 class EpubLoader:
@@ -38,6 +40,7 @@ class EpubLoader:
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"文件不存在: {file_path}")
 
+        preflight_epub(file_path)
         try:
             book = epub.read_epub(file_path)
         except Exception as e:
@@ -73,6 +76,7 @@ class EpubLoader:
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"文件不存在: {file_path}")
 
+        preflight_epub(file_path)
         try:
             book = epub.read_epub(file_path)
         except Exception as e:
@@ -193,9 +197,13 @@ class EpubLoader:
         """
         soup = BeautifulSoup(html_content, 'html.parser')
 
-        # 移除脚本和样式标签
-        for script in soup(['script', 'style']):
+        # Remove active content and URI/event attributes before extracting text.
+        for script in soup(['script', 'style', 'form', 'iframe', 'object', 'embed', 'svg', 'math', 'link', 'meta']):
             script.decompose()
+        for tag in soup.find_all(True):
+            for attr in list(tag.attrs):
+                if attr.lower().startswith('on') or attr.lower() in {'href','src','srcset','xlink:href','style'}:
+                    del tag.attrs[attr]
 
         # 获取文本
         text = soup.get_text()
@@ -205,7 +213,7 @@ class EpubLoader:
         chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
         text = '\n'.join(chunk for chunk in chunks if chunk)
 
-        return text
+        return sanitize_plain_text(text)
 
     def _extract_title_from_html(self, html_content: str) -> Optional[str]:
         """
@@ -246,6 +254,7 @@ class EpubLoader:
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"文件不存在: {file_path}")
 
+        preflight_epub(file_path)
         try:
             book = epub.read_epub(file_path)
         except Exception as e:

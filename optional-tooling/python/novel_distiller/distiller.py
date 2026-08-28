@@ -24,7 +24,9 @@ class NovelDistiller:
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
         model: Optional[str] = None,
+        remote_policy=None,
     ):
+
         """
         初始化蒸馏器
 
@@ -38,7 +40,9 @@ class NovelDistiller:
             api_key=api_key,
             base_url=base_url,
             model=model,
+            policy=remote_policy,
         )
+
 
         # 初始化各个组件
         self.txt_loader = TxtLoader()

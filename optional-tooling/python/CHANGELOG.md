@@ -1,13 +1,9 @@
 # Changelog
 
+## Python 0.3.0
+- Optional tooling now requires explicit remote endpoint consent and does not auto-load `.env`.
+- CLI no longer accepts API keys; EPUB and output safety contracts are enforced.
+- Legacy output remains explicitly `legacy-0.2`.
+
 ## [0.2.0] - 2024-02-01
-
-### Added
-- EPUB loading with chapter, metadata, and text extraction.
-- Timeline reconstruction with absolute, relative, and duration markers.
-- Writing-style analysis for perspective, pace, rhetoric, vocabulary, and sentence statistics.
-- Phase 2 result models and integrations for timeline and style data.
-- CLI `--version` support.
-
-### Fixed
-- Chapter splitting now preserves short chapters when the configured threshold allows them and correctly handles titles.
+- Initial optional Python tooling release.

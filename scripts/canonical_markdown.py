@@ -3,7 +3,7 @@ BIDI=dict.fromkeys(map(ord,'\u061c\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u20
 HEADINGS={'en':['Scope & metadata','Executive summary','Characters','Plot','Relationships','Foreshadowing','Timeline','Style','Uncertainties & contradictions','Coverage & quality check'],'zh-CN':['范围与元数据','核心摘要','人物','情节','人物关系','伏笔','时间线','风格','不确定项与矛盾','覆盖范围与质量检查']}
 def safe_scalar(v):
  t=str(v).translate(BIDI);t=''.join(c for c in t if c in '\n\t' or ord(c)>=32 and not 127<=ord(c)<=159);t=html.escape(t)
- for c in "\\`*_{}[]()#+-.!|":t=t.replace(c,"\\"+c)
+ for c in "\\`*_{}[]()#+.!|":t=t.replace(c,"\\"+c)
  return re.sub(r'(?i)\b(?:https?|javascript|file):',lambda m:m.group(0).replace(':','&#58;'),t)
 def _san(x):
  if isinstance(x,str):return safe_scalar(x)

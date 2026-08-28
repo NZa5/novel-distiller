@@ -2,27 +2,14 @@
 风格分析器测试脚本
 """
 
-import os
-import sys
-
 import pytest
-from dotenv import load_dotenv
-
-# 添加项目路径
-sys.path.insert(0, os.path.dirname(__file__))
 
 from novel_distiller.models.schemas import Chapter
 from novel_distiller.analyzers.style_analyzer import StyleAnalyzer
 from novel_distiller.utils.llm_client import LLMClient
 
-# 加载环境变量
-load_dotenv()
 
-
-@pytest.mark.skipif(
-    not os.getenv("OPENAI_API_KEY"),
-    reason="live style-analysis integration test requires an explicitly configured API key",
-)
+@pytest.mark.skip(reason="live provider evaluation is manual and requires explicit credentials")
 def test_style_analyzer():
     """测试风格分析器"""
 
