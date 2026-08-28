@@ -5,3 +5,6 @@ Schema 2.0.0 is the canonical Draft 2020-12 contract: [novel-distiller-2.0.schem
 JSON is the machine-readable source of truth. Every dimension has a closed, dimension-specific record. Evidence uses anonymous `source_id`, optional `chapter_id`/`chunk_id`, structured `locator {type,value}`, optional `quote` (maximum 90 Unicode code points), and `purpose`. Facts and inferences require evidence; evidence-free uncertainty requires notes. Missing scalars use `null`; lists use `[]`.
 
 Canonical fields follow [analysis-framework.md](analysis-framework.md); deterministic Markdown follows [markdown-profile.md](markdown-profile.md). Natural-language values use `metadata.output_language`; keys, IDs and enums remain English.
+
+## Language policy
+Natural language follows: explicit user choice, current request, conversation, source, then English. Chinese requests default to Simplified Chinese. JSON keys, IDs, locator/status/enum values stay English; names, titles and quotes retain source form.
