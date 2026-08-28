@@ -1,1 +1,17 @@
-{"sources":{"source-001":{"chapters":{"ch-001":{"paragraphs":{"p001":"雨落在站台上"}}},"chunks":["chunk-001"]}}}
+{
+  "sources": {
+    "source-foreshadow_overlap_zh": {
+      "chapters": {
+        "ch-001": {
+          "paragraphs": {
+            "p001": "铜铃在边界响起。下一段重复这句话。末章铜铃唤醒守门人；另一处相似回声没有确认，红围巾只是误导。后来不同地点铜铃再次真实响起。\n"
+          }
+        }
+      },
+      "chunks": [
+        "chunk-001"
+      ],
+      "normalized_fingerprint": "cbfebb90673acbd7d0a95eb164c0e85dbe1ca67b8b075297afd808d1961fe16b"
+    }
+  }
+}

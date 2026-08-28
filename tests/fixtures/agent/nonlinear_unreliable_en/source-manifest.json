@@ -1,1 +1,17 @@
-{"sources":{"source-001":{"chapters":{"ch-001":{"paragraphs":{"p001":"雨落在站台上"}}},"chunks":["chunk-001"]}}}
+{
+  "sources": {
+    "source-nonlinear_unreliable_en": {
+      "chapters": {
+        "ch-001": {
+          "paragraphs": {
+            "p001": "I said I never entered the harbor. In a flashback dated 3 May, I entered it; meanwhile Mara watched from the tower on 2 May, though the clock contradicted both.\n"
+          }
+        }
+      },
+      "chunks": [
+        "chunk-001"
+      ],
+      "normalized_fingerprint": "dec5d48ff69bdabcc5b5ed7d0cb718c056984aae111b7b72826ba8f4a7d75641"
+    }
+  }
+}

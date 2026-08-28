@@ -104,7 +104,7 @@ https://github.com/NZa5/novel-distiller
 
 ### 下一步
 
-1. **使用默认 Skill**：阅读 [README.md](README.md)、[INSTALL.md](INSTALL.md) 和 [QUICKSTART.md](QUICKSTART.md)。
+1. **使用默认 Skill**：阅读 [README.md](../../../README.md)、[INSTALL.md](../../../INSTALL.md) 和 [QUICKSTART.md](../../../QUICKSTART.md)。
 2. **使用可选 Python 工具**：
    ```bash
    cd /e/skill/novel-distiller

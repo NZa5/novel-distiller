@@ -2,51 +2,49 @@
   "case_id": "alias_collision_zh",
   "required": [
     {
-      "op": "exists",
-      "path": "schema_version"
+      "op": "equals",
+      "path": "schema_version",
+      "value": "2.0.0",
+      "code": "ND-SCHEMA-V2"
     },
     {
-      "op": "exists",
-      "path": "schema_version"
+      "op": "min_count",
+      "path": "characters",
+      "value": 2,
+      "code": "ND-CHARACTERS"
     },
     {
-      "op": "exists",
-      "path": "schema_version"
+      "op": "min_count",
+      "path": "plots",
+      "value": 1,
+      "code": "ND-PLOT"
     },
     {
-      "op": "exists",
-      "path": "schema_version"
+      "op": "min_count",
+      "path": "relationships",
+      "value": 1,
+      "code": "ND-RELATION"
     },
     {
-      "op": "exists",
-      "path": "schema_version"
+      "op": "min_count",
+      "path": "characters.*.aliases",
+      "value": 0,
+      "code": "ND-ALIASES-MAPPED"
     }
   ],
   "forbidden": [
     {
       "op": "equals",
       "path": "schema_version",
-      "value": "1.0"
-    },
-    {
-      "op": "equals",
-      "path": "schema_version",
-      "value": "1.0"
-    },
-    {
-      "op": "equals",
-      "path": "schema_version",
-      "value": "1.0"
+      "value": "1.0",
+      "code": "ND-NO-V1"
     }
   ],
   "relations": [
     {
-      "op": "reference_exists",
-      "path": "relationships.*.source_character_id"
-    },
-    {
-      "op": "reference_exists",
-      "path": "relationships.*.target_character_id"
+      "op": "exists",
+      "path": "metadata.sources",
+      "code": "ND-SOURCE-MAP"
     }
   ],
   "machine_readable": true

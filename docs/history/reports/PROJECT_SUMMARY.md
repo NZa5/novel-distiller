@@ -18,4 +18,4 @@ The Skill works with text the host Agent can read: pasted text, TXT, EPUB, or at
 
 ## Optional tooling
 
-The Python package is retained for users who choose local programmatic processing. Its dependencies and provider configuration are separate from the default Skill and are documented only as optional tooling in [INSTALL.md](INSTALL.md) and [QUICKSTART.md](QUICKSTART.md).
+The Python package is retained for users who choose local programmatic processing. Its dependencies and provider configuration are separate from the default Skill and are documented only as optional tooling in [INSTALL.md](../../../INSTALL.md) and [QUICKSTART.md](../../../QUICKSTART.md).

@@ -1,1 +1,17 @@
-{"sources":{"source-001":{"chapters":{"ch-001":{"paragraphs":{"p001":"雨落在站台上"}}},"chunks":["chunk-001"]}}}
+{
+  "sources": {
+    "source-alias_collision_zh": {
+      "chapters": {
+        "ch-001": {
+          "paragraphs": {
+            "p001": "白鹭既是沈岚的笔名，也是两位守门人共用的称号。没人能确定夜班的白鹭是谁。\n"
+          }
+        }
+      },
+      "chunks": [
+        "chunk-001"
+      ],
+      "normalized_fingerprint": "88c1f469f53bbb4f7837a67252a7b9a14b402a7d65f62f775d3d935a6831f4d0"
+    }
+  }
+}
