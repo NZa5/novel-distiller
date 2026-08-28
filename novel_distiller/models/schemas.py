@@ -64,6 +64,16 @@ class Plot(BaseModel):
     key_events: List[str] = Field(default_factory=list, description="关键事件")
 
 
+class CharacterRelation(BaseModel):
+    """人物关系（Phase 2）"""
+    source: str = Field(description="人物A")
+    target: str = Field(description="人物B")
+    relation_type: str = Field(description="关系类型（亲属/朋友/敌对/师徒/恋人/同事等）")
+    description: str = Field(description="关系描述")
+    chapters: List[int] = Field(default_factory=list, description="关系出现的章节")
+    strength: float = Field(default=0.5, description="关系强度 0-1")
+
+
 class QualityMetrics(BaseModel):
     """质量评估指标"""
     completeness: float = Field(description="完整性得分 (0-1)")
@@ -78,6 +88,7 @@ class DistillResult(BaseModel):
     chapters: List[Chapter] = Field(description="章节列表")
     characters: List[Character] = Field(description="人物列表")
     plots: List[Plot] = Field(description="情节列表")
+    relations: List[CharacterRelation] = Field(default_factory=list, description="人物关系（Phase 2）")
     quality_metrics: Optional[QualityMetrics] = Field(None, description="质量评估")
     
     @property

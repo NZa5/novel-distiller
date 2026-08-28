@@ -9,7 +9,9 @@ from pathlib import Path
 from .models.schemas import DistillResult, QualityMetrics
 from .loaders import TxtLoader, ChapterSplitter
 from .analyzers import CharacterExtractor, PlotExtractor, StructureAnalyzer
+from .analyzers.relationship_analyzer import RelationshipAnalyzer
 from .exporters import JsonExporter, MarkdownExporter
+from .visualizers import RelationshipVisualizer
 from .utils import LLMClient
 
 
@@ -43,6 +45,8 @@ class NovelDistiller:
         self.character_extractor = CharacterExtractor(self.llm)
         self.plot_extractor = PlotExtractor(self.llm)
         self.structure_analyzer = StructureAnalyzer(self.llm)
+        self.relationship_analyzer = RelationshipAnalyzer(self.llm)  # Phase 2
+        self.relationship_visualizer = RelationshipVisualizer()  # Phase 2
         self.json_exporter = JsonExporter()
         self.markdown_exporter = MarkdownExporter()
     
@@ -53,6 +57,7 @@ class NovelDistiller:
         verbose: bool = False,
         extract_characters: bool = True,
         extract_plots: bool = True,
+        extract_relationships: bool = True,  # Phase 2
     ) -> DistillResult:
         """
         蒸馏小说
@@ -63,6 +68,7 @@ class NovelDistiller:
             verbose: 是否显示详细信息
             extract_characters: 是否提取人物
             extract_plots: 是否提取情节
+            extract_relationships: 是否提取人物关系 (Phase 2)
         
         Returns:
             蒸馏结果
@@ -112,21 +118,33 @@ class NovelDistiller:
             if verbose:
                 print(f"✅ 提取到 {len(plots)} 条情节线")
         
-        # 6. 质量评估
+        # 6. 提取人物关系 (Phase 2)
+        relations = []
+        if extract_relationships and characters:
+            if verbose:
+                print("⏳ 分析人物关系...")
+            relations = self.relationship_analyzer.extract_relationships(
+                characters, chapters
+            )
+            if verbose:
+                print(f"✅ 提取到 {len(relations)} 对人物关系")
+        
+        # 7. 质量评估
         if verbose:
             print("⏳ 评估蒸馏质量...")
         quality_metrics = self._evaluate_quality(chapters, characters, plots)
         
-        # 7. 构建结果
+        # 8. 构建结果
         result = DistillResult(
             meta=meta,
             chapters=chapters,
             characters=characters,
             plots=plots,
+            relations=relations,  # Phase 2
             quality_metrics=quality_metrics,
         )
         
-        # 8. 导出结果
+        # 9. 导出结果
         if verbose:
             print(f"⏳ 导出结果到 {output_dir}...")
         
@@ -136,6 +154,16 @@ class NovelDistiller:
         # 导出 Markdown
         md_path = os.path.join(output_dir, "report.md")
         self.markdown_exporter.export(result, md_path)
+        
+        # 导出关系图谱 (Phase 2)
+        if relations:
+            graph_path = os.path.join(output_dir, "relationship_graph.png")
+            self.relationship_visualizer.visualize(
+                relations, characters, graph_path
+            )
+            self.relationship_visualizer.export_graph_data(
+                relations, characters, output_dir
+            )
         
         if verbose:
             print("✅ 蒸馏完成！")

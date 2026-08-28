@@ -76,6 +76,26 @@ class MarkdownExporter:
                         lines.append(f"- **关键特征**: {', '.join(ch.key_traits)}")
                     lines.append("")
         
+        # 人物关系 (Phase 2)
+        if result.relations:
+            lines.append("## 🔗 人物关系\n")
+            
+            # 按关系类型分组
+            relation_types = {}
+            for rel in result.relations:
+                rel_type = rel.relation_type
+                if rel_type not in relation_types:
+                    relation_types[rel_type] = []
+                relation_types[rel_type].append(rel)
+            
+            for rel_type, rels in relation_types.items():
+                lines.append(f"### {rel_type}\n")
+                for rel in rels:
+                    lines.append(f"- **{rel.source} ↔ {rel.target}**: {rel.description}")
+                    lines.append(f"  - 出现章节: {', '.join(f'第{ch}章' for ch in rel.chapters[:5])}{'...' if len(rel.chapters) > 5 else ''}")
+                    lines.append(f"  - 关系强度: {'★' * int(rel.strength * 5)}")
+                lines.append("")
+        
         # 情节脉络
         lines.append("## 📊 情节脉络\n")
         
