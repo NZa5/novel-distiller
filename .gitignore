@@ -42,6 +42,10 @@ ENV/
 .coverage
 htmlcov/
 
-# Output
+# Generated output (keep only the published documentation fixtures)
 output/
+!examples/output/
+examples/output/*
+!examples/output/sample_distillation.md
+!examples/output/sample_distillation.json
 *.log
