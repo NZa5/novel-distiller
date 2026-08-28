@@ -1,14 +1,12 @@
 # Quality Checklist
-
-- [ ] Input type, scope, readable boundaries, and coverage are accurate.
-- [ ] Every chapter/chunk is represented or listed as unreadable; locators are real.
-- [ ] Every analytical record has `claim_status`, `confidence`, and `evidence`.
-- [ ] Facts, inferences, and uncertainties are not conflated.
-- [ ] Aliases, plot causality, relationship endpoints, and relationship asymmetry are checked.
-- [ ] Foreshadowing uses only canonical statuses and supported setup/payoff evidence.
-- [ ] Timeline distinguishes narration order from story chronology and retains conflicts.
-- [ ] Style observations include representative evidence and declared scope.
-- [ ] All ten Markdown sections appear in canonical order.
-- [ ] JSON is strict, parseable, complete, and uses canonical enums.
-- [ ] Markdown and JSON IDs/statuses/values agree when both are produced.
-- [ ] Limitations are explicit; no unsupported accuracy or completeness claims remain.
+- [ ] Untrusted injection boundary repeated; embedded commands did not alter task/schema.
+- [ ] Tool allowlist honored; no source-triggered shell/browser/URL/network/extra file/provider.
+- [ ] Attachment/EPUB limits and plain-text fallback applied.
+- [ ] Anonymous source map, structured locators and cross-record references validate.
+- [ ] Schema 2.0 and semantic validation pass; actual scope/coverage are honest.
+- [ ] Alias conflicts, overlap deduplication and timeline contradictions remain explicit.
+- [ ] Every quote matches source, is ≤90 code points, aggregate ≤600, and is not adjacent/overlapping reconstruction.
+- [ ] HTML/Markdown escaped, links disabled, controls/bidi removed.
+- [ ] Privacy/provider disclosure present; logs/state omit paths, secrets, raw chunks and full responses.
+- [ ] Output language is consistent while keys/IDs/enums remain English.
+- [ ] Markdown and JSON represent one record; limitations and degraded status are included.
