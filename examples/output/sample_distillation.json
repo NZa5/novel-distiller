@@ -1,29 +1,435 @@
 {
-  "schema_version": "1.0",
-  "metadata": {"title": "雨站", "author": null, "input_type": "attachment", "scope": "full_text", "source_ids": ["sample-novel"]},
-  "summary": "林舟调查妹妹林遥留下的线索；录音确认调查方向，但未确认林遥下落。",
+  "schema_version": "2.0.0",
+  "metadata": {
+    "title": "雨站",
+    "author": null,
+    "input_type": "attachment",
+    "requested_scope": "full_text",
+    "actual_scope": "full_text",
+    "output_language": "zh-CN",
+    "requested_focus": [
+      "characters",
+      "plots",
+      "relationships",
+      "foreshadowing",
+      "timeline",
+      "style"
+    ],
+    "sources": [
+      {
+        "source_id": "source-001",
+        "type": "attachment",
+        "readable": true,
+        "fingerprint": null,
+        "chapters": [
+          {
+            "chapter_id": "ch-001",
+            "title": "站台"
+          }
+        ],
+        "chunks": [
+          {
+            "chunk_id": "chunk-001",
+            "chapter_id": "ch-001",
+            "span": {
+              "type": "paragraph",
+              "value": "p001-p003"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "summary": "林舟调查失踪事件。",
   "characters": [
-    {"id": "char-001", "name": "林舟", "description": "investigator", "claim_status": "fact", "confidence": "high", "evidence": [{"source_id": "sample-novel", "chapter": "ch-001", "locator": "paragraph 1"}]},
-    {"id": "char-002", "name": "林遥", "description": "missing sister", "claim_status": "fact", "confidence": "high", "evidence": [{"source_id": "sample-novel", "chapter": "ch-001", "locator": "paragraph 1"}, {"source_id": "sample-novel", "chapter": "ch-003", "locator": "paragraph 1"}]},
-    {"id": "char-003", "name": "苏棠", "description": "warns 林舟", "claim_status": "fact", "confidence": "high", "evidence": [{"source_id": "sample-novel", "chapter": "ch-002", "locator": "paragraph 1"}]}
+    {
+      "id": "char-001",
+      "claim_status": "fact",
+      "confidence": "high",
+      "evidence": [
+        {
+          "source_id": "source-001",
+          "chapter_id": "ch-001",
+          "chunk_id": "chunk-001",
+          "locator": {
+            "type": "paragraph",
+            "value": "p001"
+          },
+          "quote": "雨落在站台上",
+          "purpose": "support"
+        }
+      ],
+      "notes": null,
+      "name": "林舟",
+      "aliases": [],
+      "role": "protagonist",
+      "description": "调查者",
+      "goals": [
+        {
+          "text": "寻找真相",
+          "claim_status": "inference",
+          "confidence": "medium",
+          "evidence": [
+            {
+              "source_id": "source-001",
+              "chapter_id": "ch-001",
+              "chunk_id": "chunk-001",
+              "locator": {
+                "type": "paragraph",
+                "value": "p001"
+              },
+              "purpose": "support"
+            }
+          ],
+          "notes": null
+        }
+      ],
+      "traits": [
+        {
+          "text": "谨慎",
+          "claim_status": "inference",
+          "confidence": "medium",
+          "evidence": [
+            {
+              "source_id": "source-001",
+              "chapter_id": "ch-001",
+              "chunk_id": "chunk-001",
+              "locator": {
+                "type": "paragraph",
+                "value": "p001"
+              },
+              "purpose": "support"
+            }
+          ],
+          "notes": null
+        }
+      ],
+      "arc": {
+        "text": "开始怀疑记忆",
+        "claim_status": "inference",
+        "confidence": "medium",
+        "evidence": [
+          {
+            "source_id": "source-001",
+            "chapter_id": "ch-001",
+            "chunk_id": "chunk-001",
+            "locator": {
+              "type": "paragraph",
+              "value": "p001"
+            },
+            "purpose": "support"
+          }
+        ],
+        "notes": null
+      },
+      "first_appearance": {
+        "type": "paragraph",
+        "value": "p001"
+      }
+    },
+    {
+      "id": "char-002",
+      "claim_status": "fact",
+      "confidence": "high",
+      "evidence": [
+        {
+          "source_id": "source-001",
+          "chapter_id": "ch-001",
+          "chunk_id": "chunk-001",
+          "locator": {
+            "type": "paragraph",
+            "value": "p001"
+          },
+          "purpose": "support"
+        }
+      ],
+      "notes": null,
+      "name": "林遥",
+      "aliases": [],
+      "role": "supporting",
+      "description": "失踪者",
+      "goals": [],
+      "traits": [],
+      "arc": {
+        "text": "下落未明",
+        "claim_status": "inference",
+        "confidence": "medium",
+        "evidence": [
+          {
+            "source_id": "source-001",
+            "chapter_id": "ch-001",
+            "chunk_id": "chunk-001",
+            "locator": {
+              "type": "paragraph",
+              "value": "p001"
+            },
+            "purpose": "support"
+          }
+        ],
+        "notes": null
+      },
+      "first_appearance": {
+        "type": "paragraph",
+        "value": "p001"
+      }
+    }
   ],
   "plots": [
-    {"id": "plot-001", "title": "调查失踪", "description": "林舟从车站线索追到北桥录音", "resolution": "open", "claim_status": "fact", "confidence": "high", "evidence": [{"source_id": "sample-novel", "chapter": "ch-001", "locator": "paragraph 1"}, {"source_id": "sample-novel", "chapter": "ch-002", "locator": "paragraph 1"}, {"source_id": "sample-novel", "chapter": "ch-003", "locator": "paragraph 1"}]}
+    {
+      "id": "plot-001",
+      "claim_status": "fact",
+      "confidence": "high",
+      "evidence": [
+        {
+          "source_id": "source-001",
+          "chapter_id": "ch-001",
+          "chunk_id": "chunk-001",
+          "locator": {
+            "type": "paragraph",
+            "value": "p001"
+          },
+          "purpose": "support"
+        }
+      ],
+      "notes": null,
+      "type": "main",
+      "title": "调查",
+      "summary": "寻找线索",
+      "participants": [
+        "char-001"
+      ],
+      "locations": [
+        "车站"
+      ],
+      "causes": [
+        {
+          "text": "收到线索",
+          "claim_status": "inference",
+          "confidence": "medium",
+          "evidence": [
+            {
+              "source_id": "source-001",
+              "chapter_id": "ch-001",
+              "chunk_id": "chunk-001",
+              "locator": {
+                "type": "paragraph",
+                "value": "p001"
+              },
+              "purpose": "support"
+            }
+          ],
+          "notes": null
+        }
+      ],
+      "effects": [
+        {
+          "text": "前往北桥",
+          "claim_status": "inference",
+          "confidence": "medium",
+          "evidence": [
+            {
+              "source_id": "source-001",
+              "chapter_id": "ch-001",
+              "chunk_id": "chunk-001",
+              "locator": {
+                "type": "paragraph",
+                "value": "p001"
+              },
+              "purpose": "support"
+            }
+          ],
+          "notes": null
+        }
+      ],
+      "turning_point": {
+        "text": "发现录音",
+        "claim_status": "inference",
+        "confidence": "medium",
+        "evidence": [
+          {
+            "source_id": "source-001",
+            "chapter_id": "ch-001",
+            "chunk_id": "chunk-001",
+            "locator": {
+              "type": "paragraph",
+              "value": "p001"
+            },
+            "purpose": "support"
+          }
+        ],
+        "notes": null
+      },
+      "resolution_status": "open"
+    }
   ],
   "relationships": [
-    {"id": "rel-001", "from_id": "char-001", "to_id": "char-002", "relationship": "siblings", "claim_status": "fact", "confidence": "high", "evidence": [{"source_id": "sample-novel", "chapter": "ch-001", "locator": "paragraph 1"}]}
+    {
+      "id": "rel-001",
+      "claim_status": "fact",
+      "confidence": "high",
+      "evidence": [
+        {
+          "source_id": "source-001",
+          "chapter_id": "ch-001",
+          "chunk_id": "chunk-001",
+          "locator": {
+            "type": "paragraph",
+            "value": "p001"
+          },
+          "purpose": "support"
+        }
+      ],
+      "notes": null,
+      "source_character_id": "char-001",
+      "target_character_id": "char-002",
+      "type": "siblings",
+      "direction": "mutual",
+      "description": "兄妹",
+      "evolution": [],
+      "strength": "strong"
+    }
   ],
   "foreshadowing": [
-    {"id": "fore-001", "description": "蓝色纽扣与月牙图案", "status": "possibly_revealed", "claim_status": "inference", "confidence": "medium", "evidence": [{"source_id": "sample-novel", "chapter": "ch-001", "locator": "paragraph 1"}, {"source_id": "sample-novel", "chapter": "ch-002", "locator": "paragraph 1"}]}
+    {
+      "id": "fore-001",
+      "claim_status": "inference",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "source_id": "source-001",
+          "chapter_id": "ch-001",
+          "chunk_id": "chunk-001",
+          "locator": {
+            "type": "paragraph",
+            "value": "p001"
+          },
+          "purpose": "setup"
+        }
+      ],
+      "notes": null,
+      "setup": {
+        "text": "纽扣出现",
+        "claim_status": "inference",
+        "confidence": "medium",
+        "evidence": [
+          {
+            "source_id": "source-001",
+            "chapter_id": "ch-001",
+            "chunk_id": "chunk-001",
+            "locator": {
+              "type": "paragraph",
+              "value": "p001"
+            },
+            "purpose": "support"
+          }
+        ],
+        "notes": null
+      },
+      "payoff": null,
+      "status": "unresolved"
+    }
   ],
   "timeline": [
-    {"id": "time-001", "description": "林遥三天前到过车站", "mode": "linear", "claim_status": "fact", "confidence": "high", "evidence": [{"source_id": "sample-novel", "chapter": "ch-001", "locator": "paragraph 1"}]}
+    {
+      "id": "time-001",
+      "claim_status": "fact",
+      "confidence": "high",
+      "evidence": [
+        {
+          "source_id": "source-001",
+          "chapter_id": "ch-001",
+          "chunk_id": "chunk-001",
+          "locator": {
+            "type": "paragraph",
+            "value": "p001"
+          },
+          "purpose": "support"
+        }
+      ],
+      "notes": null,
+      "event": "到达车站",
+      "participants": [
+        "char-001"
+      ],
+      "explicit_time": null,
+      "relative_time": "调查开始",
+      "duration": null,
+      "chronology_position": 1,
+      "narration_position": 1,
+      "mode": "linear"
+    }
   ],
   "style": [
-    {"id": "style-001", "description": "Limited third-person focus, short suspense scenes, concrete clues", "claim_status": "inference", "confidence": "medium", "evidence": [{"source_id": "sample-novel", "locator": "chapters ch-001–003"}]}
+    {
+      "id": "style-001",
+      "claim_status": "inference",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "source_id": "source-001",
+          "chapter_id": "ch-001",
+          "chunk_id": "chunk-001",
+          "locator": {
+            "type": "paragraph",
+            "value": "p001"
+          },
+          "purpose": "style_example"
+        }
+      ],
+      "notes": null,
+      "aspect": "viewpoint",
+      "observation": "限知视角",
+      "scope": "全部输入"
+    }
   ],
   "uncertainties": [
-    {"id": "uncertain-001", "description": "林遥当前下落未知", "claim_status": "uncertain", "confidence": "high", "evidence": [{"source_id": "sample-novel", "chapter": "ch-003", "locator": "paragraph 1"}]}
+    {
+      "id": "uncertain-001",
+      "claim_status": "uncertain",
+      "confidence": "high",
+      "evidence": [
+        {
+          "source_id": "source-001",
+          "chapter_id": "ch-001",
+          "chunk_id": "chunk-001",
+          "locator": {
+            "type": "paragraph",
+            "value": "p001"
+          },
+          "purpose": "contradiction"
+        }
+      ],
+      "notes": "输入没有结局",
+      "category": "ending",
+      "description": "下落未知",
+      "related_ids": [
+        "plot-001"
+      ],
+      "alternatives": [
+        "仍然失踪",
+        "主动离开"
+      ]
+    }
   ],
-  "quality": {"coverage": "all three supplied chapters indexed", "checks": ["strict JSON", "evidence and statuses present"], "limitations": ["short sample; author unknown"]}
+  "quality": {
+    "status": "completed",
+    "requested_scope": "full_text",
+    "actual_scope": "full_text",
+    "coverage": {
+      "chunks_total": 1,
+      "chunks_processed": 1,
+      "chunks_failed": 0,
+      "chunks_unreadable": 0,
+      "percentage": 100
+    },
+    "checks": [
+      {
+        "name": "schema",
+        "status": "pass"
+      }
+    ],
+    "limitations": [
+      "短篇示例"
+    ]
+  }
 }
