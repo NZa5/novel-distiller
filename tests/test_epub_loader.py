@@ -13,13 +13,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 def test_import():
     """测试导入"""
-    try:
-        from novel_distiller.loaders.epub_loader import EpubLoader
-        print("✓ EpubLoader 导入成功")
-        return True
-    except ImportError as e:
-        print(f"✗ 导入失败: {e}")
-        return False
+    from novel_distiller.loaders.epub_loader import EpubLoader
+
+    assert EpubLoader is not None
 
 
 def test_class_structure():
@@ -45,13 +41,7 @@ def test_class_structure():
     ]
 
     for method_name in methods:
-        if hasattr(loader, method_name):
-            print(f"✓ 方法 {method_name} 存在")
-        else:
-            print(f"✗ 方法 {method_name} 不存在")
-            return False
-
-    return True
+        assert hasattr(loader, method_name), f"method missing: {method_name}"
 
 
 def test_html_extraction():
@@ -94,7 +84,6 @@ def test_html_extraction():
     assert "正文内容" in text2
     print("✓ HTML 脚本和样式过滤测试通过")
 
-    return True
 
 
 def test_title_extraction():
@@ -121,7 +110,6 @@ def test_title_extraction():
     assert title3 is None
     print("✓ 无标题情况测试通过")
 
-    return True
 
 
 def test_error_handling():
@@ -131,45 +119,27 @@ def test_error_handling():
     loader = EpubLoader()
 
     # 测试文件不存在
-    try:
-        loader.load("nonexistent_file.epub")
-        print("✗ 应该抛出 FileNotFoundError")
-        return False
-    except FileNotFoundError:
-        print("✓ FileNotFoundError 正确抛出")
+    import pytest
 
-    return True
+    with pytest.raises(FileNotFoundError):
+        loader.load("nonexistent_file.epub")
 
 
 def test_integration_with_chapter_splitter():
     """测试与 ChapterSplitter 的集成"""
-    try:
-        from novel_distiller.loaders.epub_loader import EpubLoader
-        from novel_distiller.loaders.chapter_splitter import ChapterSplitter
+    from novel_distiller.loaders.epub_loader import EpubLoader
+    from novel_distiller.loaders.chapter_splitter import ChapterSplitter
 
-        print("✓ EpubLoader 和 ChapterSplitter 可以同时导入")
-
-        # 测试它们可以一起使用
-        loader = EpubLoader()
-        splitter = ChapterSplitter()
-
-        print("✓ 两个类可以同时实例化")
-
-        return True
-    except Exception as e:
-        print(f"✗ 集成测试失败: {e}")
-        return False
+    assert isinstance(EpubLoader(), EpubLoader)
+    assert isinstance(ChapterSplitter(), ChapterSplitter)
 
 
 def test_package_import():
     """测试从包级别导入"""
-    try:
-        from novel_distiller.loaders import EpubLoader, ChapterSplitter
-        print("✓ 可以从 novel_distiller.loaders 导入 EpubLoader")
-        return True
-    except ImportError as e:
-        print(f"✗ 包级别导入失败: {e}")
-        return False
+    from novel_distiller.loaders import EpubLoader, ChapterSplitter
+
+    assert EpubLoader is not None
+    assert ChapterSplitter is not None
 
 
 def main():

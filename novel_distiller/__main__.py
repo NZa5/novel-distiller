@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from novel_distiller import NovelDistiller
+from novel_distiller import NovelDistiller, __version__
 
 
 def main():
@@ -16,7 +16,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         add_help=True,
     )
-    parser.add_argument("--version", action="version", version="Novel Distiller v0.2.0")
+    parser.add_argument("--version", action="version", version=f"Novel Distiller v{__version__}")
 
 
     subparsers = parser.add_subparsers(dest="command", help="命令")
@@ -93,7 +93,6 @@ def main():
 
     # 执行命令
     if args.command == "version":
-        from novel_distiller import __version__
         print(f"Novel Distiller v{__version__}")
         sys.exit(0)
 

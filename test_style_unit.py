@@ -33,10 +33,8 @@ def test_imports():
         )
         print("  OK - 所有数据模型导入成功")
 
-        return True
     except Exception as e:
-        print(f"  FAIL - {e}")
-        return False
+        raise AssertionError("module imports failed") from e
 
 
 def test_data_models():
@@ -111,12 +109,8 @@ def test_data_models():
         )
         print(f"  OK - 写作风格: 视角={style.perspective.value}, 基调={style.tone}")
 
-        return True
     except Exception as e:
-        print(f"  FAIL - {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+        raise AssertionError("data model construction failed") from e
 
 
 def test_statistical_methods():
@@ -157,12 +151,8 @@ def test_statistical_methods():
         print(f"       描写={pace.description_ratio:.2%}")
         print(f"       动作={pace.action_ratio:.2%}")
 
-        return True
     except Exception as e:
-        print(f"  FAIL - {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+        raise AssertionError("statistical analysis failed") from e
 
 
 def test_integration_with_distill_result():
@@ -231,12 +221,8 @@ def test_integration_with_distill_result():
         print(f"       视角: {result.writing_style.perspective.value}")
         print(f"       基调: {result.writing_style.tone}")
 
-        return True
     except Exception as e:
-        print(f"  FAIL - {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+        raise AssertionError("DistillResult integration failed") from e
 
 
 def main():

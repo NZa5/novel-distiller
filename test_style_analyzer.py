@@ -4,6 +4,8 @@
 
 import os
 import sys
+
+import pytest
 from dotenv import load_dotenv
 
 # 添加项目路径
@@ -17,6 +19,10 @@ from novel_distiller.utils.llm_client import LLMClient
 load_dotenv()
 
 
+@pytest.mark.skipif(
+    not os.getenv("OPENAI_API_KEY"),
+    reason="live style-analysis integration test requires an explicitly configured API key",
+)
 def test_style_analyzer():
     """测试风格分析器"""
 
@@ -178,11 +184,8 @@ def test_style_analyzer():
         print(f"\n✗ 测试失败: {e}")
         import traceback
         traceback.print_exc()
-        return False
-
-    return True
+        raise AssertionError("style analysis failed") from e
 
 
 if __name__ == "__main__":
-    success = test_style_analyzer()
-    sys.exit(0 if success else 1)
+    test_style_analyzer()

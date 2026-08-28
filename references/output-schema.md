@@ -16,7 +16,7 @@ Markdown and JSON represent the same canonical record. Required top-level keys a
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.invalid/novel-distiller.schema.json",
+  "$id": "urn:novel-distiller:schema:1.0",
   "title": "Novel Distiller Output",
   "type": "object",
   "required": ["schema_version", "metadata", "summary", "characters", "plots", "relationships", "foreshadowing", "timeline", "style", "uncertainties", "quality"],
