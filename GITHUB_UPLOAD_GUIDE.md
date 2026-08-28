@@ -2,66 +2,64 @@
 
 ## 📋 准备工作
 
-你的项目已经在本地创建完成，位于：`E:/skill/novel-distiller`
+你的本地仓库位于：`E:/skill/novel-distiller`。
 
-当前提交历史：
-```
-6f46c94 Add comprehensive project summary
-aaaecb5 Add quickstart guide and contributing guidelines
-62337cb Initial commit: Novel Distiller MVP Phase 1
-```
+目标仓库：<https://github.com/NZa5/novel-distiller>
 
 ## 🚀 上传步骤
 
-### 1. 在 GitHub 上创建新仓库
+### 1. 创建 GitHub 仓库
 
-1. 访问 https://github.com/new
-2. 填写信息：
-   - **Repository name**: `novel-distiller`
-   - **Description**: `📚 小说蒸馏 Skill - 从小说中提取和分析核心信息的 AI 工具`
-   - **Visibility**: Public（或 Private）
-   - **⚠️ 不要勾选**：
-     - ❌ Add a README file
-     - ❌ Add .gitignore
-     - ❌ Choose a license
-   
-   （因为我们已经在本地创建了这些文件）
-
-3. 点击 **Create repository**
-
-### 2. 将本地仓库推送到 GitHub
-
-在命令行中执行以下命令：
+如果目标仓库尚未创建，可以使用 GitHub CLI：
 
 ```bash
-# 进入项目目录
 cd /e/skill/novel-distiller
+gh auth status
+gh repo create NZa5/novel-distiller --public --source=. --remote=origin
+```
 
-# 添加远程仓库（替换 YOUR_USERNAME 为你的 GitHub 用户名）
-git remote add origin https://github.com/YOUR_USERNAME/novel-distiller.git
+如果仓库已经存在，直接添加远程地址：
 
-# 检查远程仓库是否添加成功
+```bash
+cd /e/skill/novel-distiller
+git remote add origin https://github.com/NZa5/novel-distiller.git
+```
+
+如果 `origin` 已存在，先检查它指向的地址：
+
+```bash
 git remote -v
+```
 
-# 推送代码到 GitHub
-git push -u origin master
+### 2. 推送代码
 
-# 或者如果你的默认分支是 main：
-# git branch -M main
-# git push -u origin main
+确认远程地址无误后推送当前分支：
+
+```bash
+git remote -v
+git push -u origin HEAD
+```
+
+如果远程仓库要求使用 `main` 作为默认分支，可先执行：
+
+```bash
+git branch -M main
+git push -u origin main
+```
+
+认证请通过 `gh auth login` 或 Git 的凭据管理器完成。不要把访问令牌、密码或其他凭据写进远程 URL、命令行历史或文档；需要排查认证状态时使用：
+
+```bash
+gh auth status
+git remote -v
 ```
 
 ### 3. 验证上传
 
-访问你的 GitHub 仓库页面：
-```
-https://github.com/YOUR_USERNAME/novel-distiller
-```
+访问仓库页面：<https://github.com/NZa5/novel-distiller>
 
 你应该能看到：
 - ✅ README.md 显示在首页
-- ✅ 28 个文件
-- ✅ 3 次提交
 - ✅ MIT License
 - ✅ Python 项目标识
 
@@ -70,7 +68,8 @@ https://github.com/YOUR_USERNAME/novel-distiller
 ### 1. 设置仓库主题标签
 
 在 GitHub 仓库页面点击 **⚙️ Settings** > **Topics**，添加：
-```
+
+```text
 python, nlp, novel, ai, langchain, llm, text-analysis, skill, chinese
 ```
 
@@ -83,80 +82,69 @@ python, nlp, novel, ai, langchain, llm, text-analysis, skill, chinese
 
 ### 3. 启用 GitHub Actions（可选）
 
-如果要添加 CI/CD，创建 `.github/workflows/tests.yml`
+如果要添加 CI/CD，创建 `.github/workflows/tests.yml`。
 
 ### 4. 更新 README 中的链接
 
-将 README.md 和其他文档中的：
-```
+仓库相关链接应统一指向：
+
+```text
 https://github.com/NZa5/novel-distiller
 ```
-替换为你的实际 GitHub 地址。
 
 ## 🎉 完成！
 
-现在你的项目已经成功上传到 GitHub！
+代码推送后即可在 GitHub 上查看项目。
 
-### 项目亮点
+### 项目内容
 
-✅ **完整的 MVP 实现**
-- 2500+ 行代码
-- 22 个 Python 文件
-- 6 个核心模块
-- 完整的文档和示例
-
-✅ **专业的项目结构**
-- 清晰的模块划分
-- 完善的文档体系
-- 单元测试覆盖
-- 开发规范文档
-
-✅ **生产就绪**
-- 命令行工具
-- 批量处理
-- 多编码支持
-- 错误处理
+- **默认 Skill**：由 `SKILL.md` 和 `references/` 中的 Markdown 文档组成，无需 API Key、Python 或网络服务。
+- **可选 Python 工具**：位于 `novel_distiller/`，适用于明确需要本地 CLI 的用户，并有单独的依赖和配置要求。
+- **示例与测试**：分别位于 `examples/` 和 `tests/`。
 
 ### 下一步
 
-1. **测试运行**：
+1. **使用默认 Skill**：阅读 [README.md](README.md)、[INSTALL.md](INSTALL.md) 和 [QUICKSTART.md](QUICKSTART.md)。
+2. **使用可选 Python 工具**：
    ```bash
    cd /e/skill/novel-distiller
    pip install -e .
    cp .env.example .env
-   # 编辑 .env 填入 API Key
+   # 仅使用可选的 LLM 工具时，按需配置 .env
    python examples/basic_usage.py
    ```
-
-2. **分享项目**：
-   - 在社交媒体分享
-   - 提交到 awesome lists
-   - 寻求社区反馈
-
-3. **持续开发**：
-   - 收集用户反馈
-   - 实现 Phase 2 功能
-   - 发布到 PyPI
+3. **分享项目**：在仓库页面或社区分享项目链接，并持续收集反馈。
 
 ## 🆘 常见问题
 
 ### Q: 推送时提示认证失败？
-A: 使用 Personal Access Token 代替密码：
+
+A: 先确认 GitHub CLI 的登录状态：
+
 ```bash
-# 生成 Token：Settings > Developer settings > Personal access tokens
-git push https://YOUR_TOKEN@github.com/YOUR_USERNAME/novel-distiller.git
+gh auth status
+gh auth login
+```
+
+也可以检查 Git 远程地址；其中不应包含访问令牌或密码：
+
+```bash
+git remote -v
 ```
 
 ### Q: 想修改提交历史？
+
 A: 在推送前可以使用：
+
 ```bash
 git commit --amend  # 修改最后一次提交
 git rebase -i HEAD~3  # 交互式修改最近 3 次提交
 ```
 
 ### Q: 如何添加合作者？
-A: Settings > Collaborators > Add people
+
+A: Settings > Collaborators > Add people。
 
 ---
 
-**恭喜你完成了 Novel Distiller 项目！** 🎊
+**仓库地址**：<https://github.com/NZa5/novel-distiller> 🎊

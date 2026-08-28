@@ -251,6 +251,6 @@ distiller = NovelDistiller(api_key="your-api-key")
 
 ## 版本信息
 
-- **创建日期**: 2024
-- **适配版本**: Novel Distiller Phase 2
+- **文档说明**: EPUB 加载器属于可选 Python 工具；默认跨 Agent Skill 不依赖 Python 或外部 API。
+- **适配版本**: Novel Distiller 0.2.0
 - **依赖版本**: ebooklib>=0.18, beautifulsoup4>=4.12.0
