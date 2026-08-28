@@ -1,81 +1,28 @@
-# 贡献指南
+# Contributing
 
-感谢你考虑为 Novel Distiller 做出贡献！
+Contributions should preserve the default promise: the Skill is cross-agent, Markdown-based, and dependency-free.
 
-## 开发环境设置
+## Two contribution areas
 
-1. Fork 本仓库
-2. 克隆你的 Fork
+1. **Skill/docs:** edit `SKILL.md`, `references/`, examples, or contract tests. Keep fields, enum values, section order, and status labels synchronized.
+2. **Optional tooling:** edit `novel_distiller/` and its tests. Keep it clearly optional; never make its Python/provider dependencies part of the Skill instructions.
 
-```bash
-git clone https://github.com/your-username/novel-distiller.git
-cd novel-distiller
-```
+## Local checks
 
-3. 安装开发依赖
+The default documentation path needs no setup. If Python is available, run:
 
 ```bash
-pip install -e ".[dev]"
+pytest
+python -m compileall -q novel_distiller tests
+ git diff --check
 ```
 
-4. 创建功能分支
+Do not commit `.env`, API keys, caches, `__pycache__`, generated output, or temporary scripts. Add examples only when they contain fictional/non-sensitive data and parse cleanly.
 
-```bash
-git checkout -b feature/your-feature-name
-```
+## Documentation rules
 
-## 开发流程
+Use repository-relative links that resolve from the file containing them. Avoid placeholder URLs, unverified version/accuracy claims, and language such as “唯一” or “production-ready” unless demonstrably supported. Describe `novel_distiller/` as optional tooling.
 
-### 代码风格
+## Pull requests
 
-使用 Black 和 isort 格式化代码：
-
-```bash
-black novel_distiller tests examples
-isort novel_distiller tests examples
-```
-
-### 运行测试
-
-```bash
-pytest tests/ -v
-```
-
-### 代码检查
-
-```bash
-flake8 novel_distiller
-```
-
-## 提交 Pull Request
-
-1. 确保所有测试通过
-2. 更新相关文档
-3. 提交 PR 并描述你的更改
-4. 等待审核
-
-## 报告 Bug
-
-使用 GitHub Issues 报告 Bug，请包含：
-
-- 操作系统和 Python 版本
-- 复现步骤
-- 期望行为和实际行为
-- 错误信息和日志
-
-## 功能建议
-
-欢迎提交功能建议！请在 Issue 中说明：
-
-- 功能描述
-- 使用场景
-- 预期实现方式
-
-## 代码审查标准
-
-- 代码清晰易读
-- 有适当的注释
-- 有单元测试
-- 符合项目代码风格
-
-感谢你的贡献！
+Explain the user-visible behavior, list files changed, include test output, and call out any schema or enum changes. Keep Markdown and JSON examples aligned. Use focused commits and the MIT license terms in [LICENSE](LICENSE).

@@ -89,7 +89,7 @@ python, nlp, novel, ai, langchain, llm, text-analysis, skill, chinese
 
 将 README.md 和其他文档中的：
 ```
-https://github.com/yourusername/novel-distiller
+https://github.com/NZa5/novel-distiller
 ```
 替换为你的实际 GitHub 地址。
 
