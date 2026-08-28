@@ -1,0 +1,95 @@
+{
+  "state_version": "1.0.0",
+  "run": {
+    "run_id": "run-001",
+    "status": "completed",
+    "state_revision": 1
+  },
+  "source": {
+    "source_id": "source-001",
+    "input_type": "txt",
+    "original_fingerprint": {
+      "algorithm": "sha256",
+      "value": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    "normalized_fingerprint": {
+      "algorithm": "sha256",
+      "value": "2222222222222222222222222222222222222222222222222222222222222222"
+    },
+    "extraction_policy_version": "text-v1"
+  },
+  "segmentation": {
+    "policy_version": "paragraph-v1",
+    "fingerprint": "3333333333333333333333333333333333333333333333333333333333333333",
+    "chunks": [
+      {
+        "id": "chunk-001",
+        "source_order": 1,
+        "core_span": "p001-p010",
+        "read_span": "p001-p011",
+        "content_fingerprint": "4444444444444444444444444444444444444444444444444444444444444444",
+        "status": "indexed",
+        "retry_count": 0
+      }
+    ]
+  },
+  "checkpoint": {
+    "checkpoint_id": "cp-001",
+    "parent_checkpoint_id": null,
+    "status": "committed",
+    "committed_batch_ids": [
+      "batch-001"
+    ],
+    "commit_frontier": 1,
+    "state_digest": "3de6556fea0c948ca729dc3e02af1024403c1f81074bef1980b8fe691ba3023f"
+  },
+  "batches": [
+    {
+      "id": "batch-001",
+      "chunk_ids": [
+        "chunk-001"
+      ],
+      "parent_revision": 0,
+      "result_revision": 1,
+      "status": "committed",
+      "idempotency_key": "source-001:1"
+    }
+  ],
+  "identity_registry": {
+    "characters": [
+      "char-001"
+    ],
+    "alias_assertions": [],
+    "redirects": [],
+    "tombstones": []
+  },
+  "deduplication": {
+    "global_records": [
+      {
+        "id": "event-001",
+        "evidence_key": "2:p001",
+        "seen_in_chunks": [
+          "chunk-001"
+        ]
+      }
+    ],
+    "merge_candidates": []
+  },
+  "progress": {
+    "chunks_total": 1,
+    "chunks_committed": 1,
+    "chunks_failed": 0,
+    "chunks_unreadable": 0,
+    "chunks_pending": 0,
+    "covered_core_spans": [
+      "p001-p010"
+    ],
+    "coverage_percentage": 100,
+    "actual_scope": "full_text"
+  },
+  "degradation": {
+    "active": false,
+    "reasons": [],
+    "skipped_dimensions": []
+  }
+}
