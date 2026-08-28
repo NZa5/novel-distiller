@@ -37,7 +37,7 @@ def validate_endpoint(endpoint: str, policy: RemotePolicy):
 
 class LLMClient:
     """LLM 客户端"""
-    
+
     def __init__(
         self,
         api_key: Optional[str] = None,
@@ -50,7 +50,7 @@ class LLMClient:
     ):
         """
         初始化 LLM 客户端
-        
+
         Args:
             api_key: API Key（默认从环境变量读取）
             base_url: API 基础 URL
@@ -68,7 +68,7 @@ class LLMClient:
         self.max_tokens = max_tokens
         if not self.api_key:
             raise ValueError("ND-CREDENTIAL-MISSING")
-        
+
         # 初始化 ChatOpenAI
         self.llm = ChatOpenAI(
             api_key=self.api_key,
@@ -77,7 +77,7 @@ class LLMClient:
             temperature=self.temperature,
             max_tokens=self.max_tokens,
         )
-    
+
     def invoke_messages(self, messages: Iterable[BaseMessage], **kwargs) -> str:
         response = self.llm.invoke(list(messages), **kwargs)
         return response.content

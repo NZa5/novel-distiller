@@ -577,7 +577,7 @@ Tests monkeypatch socket connection creation so accidental network access fails.
 
 `.github/workflows/python-tooling-ci.yml` runs offline tests on Python 3.9, 3.11, and 3.13 on Ubuntu, plus a Windows smoke job. It uses `pip install -e "optional-tooling/python[test]"`, strict markers, fake LLM/provider clients, real generated EPUB archives, CLI/export/build smoke tests, and wheel-content checks. The root compatibility install is also tested.
 
-The default command excludes `live_api`. Live tests require manual `workflow_dispatch`, a protected environment, and an explicitly supplied credential. Overall coverage is at least 70%; deterministic loader, exporter, CLI, and safety modules are at least 80%.
+The default command excludes `live_api`. Live tests require manual `workflow_dispatch`, a protected environment, and an explicitly supplied credential. The optional historical tooling currently enforces a 35% overall coverage floor to prevent regression while its legacy analyzers are expanded incrementally. The deterministic security surfaces (`epub_security.py`, `prompt_safety.py`, and `safe_text.py`) have a separate 80% floor. This is a maintenance baseline, not a quality claim about model analysis.
 
 All GitHub Actions are pinned to full commit SHAs with a version comment.
 

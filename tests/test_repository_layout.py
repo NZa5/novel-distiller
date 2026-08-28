@@ -1,3 +1,6 @@
+import json
+import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).parents[1]
@@ -19,3 +22,25 @@ def test_versions_and_legacy_output_domain_are_explicit():
     assert 'version = "0.3.0"' in pyproject
     assert '__version__ = "0.3.0"' in package
     assert "legacy-0.2" in (ROOT / "optional-tooling/python/README.md").read_text("utf-8")
+
+
+def test_coverage_gate_reads_json_summary_fields(tmp_path):
+    report = {
+        "files": {
+            "novel_distiller/utils/safe_text.py": {
+                "summary": {"num_statements": 10, "covered_lines": 8}
+            },
+            "novel_distiller/utils/prompt_safety.py": {
+                "summary": {"num_statements": 5, "covered_lines": 4}
+            },
+        }
+    }
+    path = tmp_path / "coverage.json"
+    path.write_text(json.dumps(report), encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "optional-tooling/python/scripts/check_coverage.py"), str(path)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr

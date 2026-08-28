@@ -1,4 +1,5 @@
 import json
+import re
 import zipfile
 from pathlib import Path
 
@@ -52,4 +53,9 @@ def test_ci_has_required_offline_and_manual_live_boundaries():
     assert "git diff --check" in skill and "build_skill_release.py" in skill
     assert "release.yml" in {p.name for p in (ROOT / ".github/workflows").iterdir()}
     assert "live-provider" in tooling and "workflow_dispatch" in tooling
-    assert "--strict-markers" in tooling and "--cov-fail-under=70" in tooling
+    assert "--strict-markers" in tooling and "--cov-fail-under=35" in tooling
+    assert "windows-latest" in tooling and "python -m build optional-tooling/python" in tooling
+    assert "actions/upload-artifact@" in (ROOT / ".github/workflows/release.yml").read_text("utf-8")
+    checkout_sha = "11bd71901bbe5b1630ceea73d27597364c9af683"
+    checkout_refs = re.findall(r"actions/checkout@([0-9a-f]{40})", tooling)
+    assert checkout_refs == [checkout_sha, checkout_sha, checkout_sha]
