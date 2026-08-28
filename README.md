@@ -8,6 +8,9 @@
 ## ✨ 核心功能
 
 - 📖 **智能章节分割**：自动识别章节边界
+- 📚 **EPUB 导入**：提取 EPUB 章节、元数据和纯文本
+- ⏱️ **时间线重建**：识别绝对/相对时间并估算事件顺序
+- ✍️ **风格统计**：分析叙事视角、节奏、词汇和句式特征
 - 👥 **人物提取**：识别主角、配角及其基本信息
 - 📊 **情节提取**：提取主线事件、冲突点、转折点
 - 🗺️ **结构分析**：分析叙事结构、卷/篇划分
@@ -41,6 +44,9 @@ from novel_distiller import NovelDistiller
 # 初始化蒸馏器
 distiller = NovelDistiller()
 
+# EPUB 与 Phase 2 分析也可通过同一入口使用
+# distiller.distill_novel("book.epub", output_dir="output")
+
 # 蒸馏小说
 result = distiller.distill_novel(
     file_path="path/to/novel.txt",
@@ -62,6 +68,10 @@ python -m novel_distiller distill novel.txt --output output/
 
 # 详细模式
 python -m novel_distiller distill novel.txt --verbose
+
+# 查看版本
+python -m novel_distiller --version
+python -m novel_distiller version
 ```
 
 ## 📋 输出格式
@@ -164,13 +174,13 @@ novel-distiller/
 ## 🔮 未来规划
 
 ### Phase 2 (深度分析)
-- 人物关系图谱
-- 时间线重建
-- 伏笔检测
-- 风格分析
+- ✅ 人物关系图谱
+- ✅ 时间线重建
+- ✅ 伏笔检测与回收追踪
+- ✅ 风格分析（统计 + LLM）
+- ✅ EPUB 支持（章节、目录、元数据）
 
 ### Phase 3 (高级功能)
-- EPUB 支持
 - 网文平台爬虫
 - 对比分析
 - Web 可视化界面

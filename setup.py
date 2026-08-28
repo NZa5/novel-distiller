@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="novel-distiller",
-    version="0.1.0",
+    version="0.2.0",
     author="Novel Distiller Team",
     description="从小说中提取和分析核心信息的 AI Skill",
     long_description=long_description,
@@ -30,6 +30,9 @@ setup(
         "pydantic>=2.0.0",
         "python-dotenv>=1.0.0",
         "tiktoken>=0.5.0",
+        "ebooklib>=0.18",
+        "beautifulsoup4>=4.12.0",
+        "jieba>=0.42.1",
     ],
     extras_require={
         "dev": [
