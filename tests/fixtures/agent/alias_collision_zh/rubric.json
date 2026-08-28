@@ -1,0 +1,53 @@
+{
+  "case_id": "alias_collision_zh",
+  "required": [
+    {
+      "op": "exists",
+      "path": "schema_version"
+    },
+    {
+      "op": "exists",
+      "path": "schema_version"
+    },
+    {
+      "op": "exists",
+      "path": "schema_version"
+    },
+    {
+      "op": "exists",
+      "path": "schema_version"
+    },
+    {
+      "op": "exists",
+      "path": "schema_version"
+    }
+  ],
+  "forbidden": [
+    {
+      "op": "equals",
+      "path": "schema_version",
+      "value": "1.0"
+    },
+    {
+      "op": "equals",
+      "path": "schema_version",
+      "value": "1.0"
+    },
+    {
+      "op": "equals",
+      "path": "schema_version",
+      "value": "1.0"
+    }
+  ],
+  "relations": [
+    {
+      "op": "reference_exists",
+      "path": "relationships.*.source_character_id"
+    },
+    {
+      "op": "reference_exists",
+      "path": "relationships.*.target_character_id"
+    }
+  ],
+  "machine_readable": true
+}
