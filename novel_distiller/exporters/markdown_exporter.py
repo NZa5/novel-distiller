@@ -96,6 +96,38 @@ class MarkdownExporter:
                     lines.append(f"  - 关系强度: {'★' * int(rel.strength * 5)}")
                 lines.append("")
         
+        # 伏笔检测 (Phase 2)
+        if result.foreshadows:
+            lines.append("## 🔍 伏笔追踪\n")
+            
+            # 按状态分组
+            revealed = [f for f in result.foreshadows if f.status == 'revealed']
+            planted = [f for f in result.foreshadows if f.status == 'planted']
+            
+            if revealed:
+                lines.append(f"### ✅ 已回收伏笔 ({len(revealed)})\n")
+                for fs in revealed:
+                    span = fs.revealed_chapter - fs.planted_chapter
+                    lines.append(f"#### {fs.title}")
+                    lines.append(f"- **埋设**: 第{fs.planted_chapter}章")
+                    lines.append(f"- **内容**: {fs.planted_content[:100]}...")
+                    lines.append(f"- **回收**: 第{fs.revealed_chapter}章 (距离 {span} 章)")
+                    lines.append(f"- **重要程度**: {fs.importance}")
+                    if fs.description:
+                        lines.append(f"- **说明**: {fs.description}")
+                    lines.append("")
+            
+            if planted:
+                lines.append(f"### ⏳ 未回收伏笔 ({len(planted)})\n")
+                for fs in planted:
+                    lines.append(f"#### {fs.title}")
+                    lines.append(f"- **埋设**: 第{fs.planted_chapter}章")
+                    lines.append(f"- **内容**: {fs.planted_content[:100]}...")
+                    lines.append(f"- **重要程度**: {fs.importance}")
+                    if fs.description:
+                        lines.append(f"- **说明**: {fs.description}")
+                    lines.append("")
+        
         # 情节脉络
         lines.append("## 📊 情节脉络\n")
         

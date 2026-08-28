@@ -10,6 +10,7 @@ from .schemas import (
     Character,
     Plot,
     CharacterRelation,
+    Foreshadowing,
     QualityMetrics,
     DistillResult,
 )
@@ -22,6 +23,7 @@ __all__ = [
     "Character",
     "Plot",
     "CharacterRelation",
+    "Foreshadowing",
     "QualityMetrics",
     "DistillResult",
 ]

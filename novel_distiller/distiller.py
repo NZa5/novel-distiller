@@ -10,6 +10,7 @@ from .models.schemas import DistillResult, QualityMetrics
 from .loaders import TxtLoader, ChapterSplitter
 from .analyzers import CharacterExtractor, PlotExtractor, StructureAnalyzer
 from .analyzers.relationship_analyzer import RelationshipAnalyzer
+from .analyzers.foreshadowing_detector import ForeshadowingDetector
 from .exporters import JsonExporter, MarkdownExporter
 from .visualizers import RelationshipVisualizer
 from .utils import LLMClient
@@ -46,6 +47,7 @@ class NovelDistiller:
         self.plot_extractor = PlotExtractor(self.llm)
         self.structure_analyzer = StructureAnalyzer(self.llm)
         self.relationship_analyzer = RelationshipAnalyzer(self.llm)  # Phase 2
+        self.foreshadowing_detector = ForeshadowingDetector(self.llm)  # Phase 2
         self.relationship_visualizer = RelationshipVisualizer()  # Phase 2
         self.json_exporter = JsonExporter()
         self.markdown_exporter = MarkdownExporter()
@@ -58,6 +60,7 @@ class NovelDistiller:
         extract_characters: bool = True,
         extract_plots: bool = True,
         extract_relationships: bool = True,  # Phase 2
+        detect_foreshadowing: bool = True,  # Phase 2
     ) -> DistillResult:
         """
         蒸馏小说
@@ -69,6 +72,7 @@ class NovelDistiller:
             extract_characters: 是否提取人物
             extract_plots: 是否提取情节
             extract_relationships: 是否提取人物关系 (Phase 2)
+            detect_foreshadowing: 是否检测伏笔 (Phase 2)
         
         Returns:
             蒸馏结果
@@ -129,6 +133,16 @@ class NovelDistiller:
             if verbose:
                 print(f"✅ 提取到 {len(relations)} 对人物关系")
         
+        # 6.5 检测伏笔 (Phase 2)
+        foreshadows = []
+        if detect_foreshadowing:
+            if verbose:
+                print("⏳ 检测伏笔...")
+            foreshadows = self.foreshadowing_detector.detect(chapters)
+            if verbose:
+                revealed = len([f for f in foreshadows if f.status == 'revealed'])
+                print(f"✅ 检测到 {len(foreshadows)} 个伏笔（已回收 {revealed} 个）")
+        
         # 7. 质量评估
         if verbose:
             print("⏳ 评估蒸馏质量...")
@@ -141,6 +155,7 @@ class NovelDistiller:
             characters=characters,
             plots=plots,
             relations=relations,  # Phase 2
+            foreshadows=foreshadows,  # Phase 2
             quality_metrics=quality_metrics,
         )
         

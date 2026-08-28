@@ -75,6 +75,18 @@ class JsonExporter:
                     indent=2
                 )
         
+        # 导出伏笔 (Phase 2)
+        foreshadows_path = None
+        if result.foreshadows:
+            foreshadows_path = os.path.join(output_dir, "foreshadows.json")
+            with open(foreshadows_path, "w", encoding="utf-8") as f:
+                json.dump(
+                    [f.model_dump() for f in result.foreshadows],
+                    f,
+                    ensure_ascii=False,
+                    indent=2
+                )
+        
         # 导出质量评估
         if result.quality_metrics:
             quality_path = os.path.join(output_dir, "quality_metrics.json")
@@ -103,6 +115,7 @@ class JsonExporter:
             "characters": characters_path,
             "plots": plots_path,
             "relations": relations_path,  # Phase 2
+            "foreshadows": foreshadows_path,  # Phase 2
             "quality": quality_path if result.quality_metrics else None,
             "full": full_path,
         }

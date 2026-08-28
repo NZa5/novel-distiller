@@ -74,6 +74,19 @@ class CharacterRelation(BaseModel):
     strength: float = Field(default=0.5, description="关系强度 0-1")
 
 
+class Foreshadowing(BaseModel):
+    """伏笔信息（Phase 2）"""
+    id: str = Field(description="伏笔ID")
+    title: str = Field(description="伏笔标题")
+    planted_chapter: int = Field(description="埋设章节")
+    planted_content: str = Field(description="埋设内容")
+    revealed_chapter: Optional[int] = Field(None, description="回收章节")
+    revealed_content: Optional[str] = Field(None, description="回收内容")
+    status: str = Field(default="planted", description="状态: planted/revealed/abandoned")
+    importance: str = Field(default="medium", description="重要程度: high/medium/low")
+    description: str = Field(default="", description="伏笔描述")
+
+
 class QualityMetrics(BaseModel):
     """质量评估指标"""
     completeness: float = Field(description="完整性得分 (0-1)")
@@ -89,6 +102,7 @@ class DistillResult(BaseModel):
     characters: List[Character] = Field(description="人物列表")
     plots: List[Plot] = Field(description="情节列表")
     relations: List[CharacterRelation] = Field(default_factory=list, description="人物关系（Phase 2）")
+    foreshadows: List[Foreshadowing] = Field(default_factory=list, description="伏笔列表（Phase 2）")
     quality_metrics: Optional[QualityMetrics] = Field(None, description="质量评估")
     
     @property

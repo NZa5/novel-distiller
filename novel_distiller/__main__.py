@@ -64,6 +64,11 @@ def main():
         help="不提取人物关系 (Phase 2)"
     )
     distill_parser.add_argument(
+        "--no-foreshadowing",
+        action="store_true",
+        help="不检测伏笔 (Phase 2)"
+    )
+    distill_parser.add_argument(
         "--api-key",
         help="OpenAI API Key（覆盖环境变量）"
     )
@@ -128,6 +133,7 @@ def main():
                 extract_characters=not args.no_characters,
                 extract_plots=not args.no_plots,
                 extract_relationships=not args.no_relationships,  # Phase 2
+                detect_foreshadowing=not args.no_foreshadowing,  # Phase 2
             )
             
             if not args.verbose:
