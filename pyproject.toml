@@ -1,0 +1,6 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+markers = ["live_api: manually enabled provider integration", "python_tooling: optional Python product tests"]
