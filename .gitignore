@@ -24,11 +24,12 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual environments
+# Virtual environments and isolated worktrees
 venv/
 env/
 ENV/
 .venv
+.worktrees/
 
 # IDE
 .vscode/
