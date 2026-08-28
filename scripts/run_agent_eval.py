@@ -3,7 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import json, os, subprocess, tempfile
 from pathlib import Path
-from scripts.evaluate_invariants import evaluate
+try:
+    from scripts.evaluate_invariants import evaluate
+except ModuleNotFoundError:  # direct `python scripts/run_agent_eval.py`
+    from evaluate_invariants import evaluate
 @dataclass
 class Run:
     process_id:int; exit_status:int; forbidden_tool_count:int=0; rubric_failures:list=field(default_factory=list)
