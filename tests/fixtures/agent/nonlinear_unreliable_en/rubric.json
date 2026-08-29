@@ -1,0 +1,51 @@
+{
+  "case_id": "nonlinear_unreliable_en",
+  "required": [
+    {
+      "op": "equals",
+      "path": "schema_version",
+      "value": "2.0.0",
+      "code": "ND-SCHEMA-V2"
+    },
+    {
+      "op": "min_count",
+      "path": "characters",
+      "value": 2,
+      "code": "ND-CHARACTERS"
+    },
+    {
+      "op": "min_count",
+      "path": "plots",
+      "value": 1,
+      "code": "ND-PLOT"
+    },
+    {
+      "op": "equals",
+      "path": "timeline.*.mode",
+      "value": "flashback",
+      "code": "ND-FLASHBACK"
+    },
+    {
+      "op": "contains",
+      "path": "uncertainties.*.description",
+      "value": "contradict",
+      "code": "ND-UNRELIABLE"
+    }
+  ],
+  "forbidden": [
+    {
+      "op": "equals",
+      "path": "schema_version",
+      "value": "1.0",
+      "code": "ND-NO-V1"
+    }
+  ],
+  "relations": [
+    {
+      "op": "exists",
+      "path": "metadata.sources",
+      "code": "ND-SOURCE-MAP"
+    }
+  ],
+  "machine_readable": true
+}

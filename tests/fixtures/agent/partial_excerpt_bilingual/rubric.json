@@ -1,0 +1,57 @@
+{
+  "case_id": "partial_excerpt_bilingual",
+  "required": [
+    {
+      "op": "equals",
+      "path": "schema_version",
+      "value": "2.0.0",
+      "code": "ND-SCHEMA-V2"
+    },
+    {
+      "op": "min_count",
+      "path": "characters",
+      "value": 2,
+      "code": "ND-CHARACTERS"
+    },
+    {
+      "op": "min_count",
+      "path": "plots",
+      "value": 1,
+      "code": "ND-PLOT"
+    },
+    {
+      "op": "equals",
+      "path": "metadata.actual_scope",
+      "value": "excerpt",
+      "code": "ND-EXCERPT"
+    },
+    {
+      "op": "equals",
+      "path": "quality.status",
+      "value": "degraded",
+      "code": "ND-DEGRADED"
+    },
+    {
+      "op": "equals",
+      "path": "plots.*.resolution_status",
+      "value": "unknown",
+      "code": "ND-UNSEEN-END"
+    }
+  ],
+  "forbidden": [
+    {
+      "op": "equals",
+      "path": "schema_version",
+      "value": "1.0",
+      "code": "ND-NO-V1"
+    }
+  ],
+  "relations": [
+    {
+      "op": "exists",
+      "path": "metadata.sources",
+      "code": "ND-SOURCE-MAP"
+    }
+  ],
+  "machine_readable": true
+}

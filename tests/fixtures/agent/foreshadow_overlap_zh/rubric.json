@@ -1,0 +1,51 @@
+{
+  "case_id": "foreshadow_overlap_zh",
+  "required": [
+    {
+      "op": "equals",
+      "path": "schema_version",
+      "value": "2.0.0",
+      "code": "ND-SCHEMA-V2"
+    },
+    {
+      "op": "min_count",
+      "path": "characters",
+      "value": 2,
+      "code": "ND-CHARACTERS"
+    },
+    {
+      "op": "min_count",
+      "path": "plots",
+      "value": 1,
+      "code": "ND-PLOT"
+    },
+    {
+      "op": "min_count",
+      "path": "foreshadowing.*.evidence",
+      "value": 2,
+      "code": "ND-OVERLAP-EVIDENCE"
+    },
+    {
+      "op": "equals",
+      "path": "foreshadowing.*.status",
+      "value": "revealed",
+      "code": "ND-PAYOFF"
+    }
+  ],
+  "forbidden": [
+    {
+      "op": "equals",
+      "path": "schema_version",
+      "value": "1.0",
+      "code": "ND-NO-V1"
+    }
+  ],
+  "relations": [
+    {
+      "op": "exists",
+      "path": "metadata.sources",
+      "code": "ND-SOURCE-MAP"
+    }
+  ],
+  "machine_readable": true
+}

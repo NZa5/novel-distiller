@@ -1,0 +1,4 @@
+include README.md
+include pyproject.toml
+recursive-include optional-tooling/python/novel_distiller *.py
+recursive-exclude optional-tooling/python/tests *

@@ -1,0 +1,17 @@
+{
+  "sources": {
+    "source-partial_excerpt_bilingual": {
+      "chapters": {
+        "ch-001": {
+          "paragraphs": {
+            "p001": "“Wait, 阿澄。” The excerpt stops before the locked door opens; apparent closure is not the unseen ending.\n"
+          }
+        }
+      },
+      "chunks": [
+        "chunk-001"
+      ],
+      "normalized_fingerprint": "19189bd5190f295226ade9f4804179f4c9df3256c98149cf09f9f07f09733afb"
+    }
+  }
+}

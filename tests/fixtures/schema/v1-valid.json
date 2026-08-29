@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "metadata": {"title": "雨站", "author": null, "input_type": "attachment", "scope": "full_text", "source_ids": ["sample-novel"]},
+  "summary": "林舟调查妹妹林遥留下的线索；录音确认调查方向，但未确认林遥下落。",
+  "characters": [
+    {"id": "char-001", "name": "林舟", "description": "investigator", "claim_status": "fact", "confidence": "high", "evidence": [{"source_id": "sample-novel", "chapter": "ch-001", "locator": "paragraph 1"}]},
+    {"id": "char-002", "name": "林遥", "description": "missing sister", "claim_status": "fact", "confidence": "high", "evidence": [{"source_id": "sample-novel", "chapter": "ch-001", "locator": "paragraph 1"}, {"source_id": "sample-novel", "chapter": "ch-003", "locator": "paragraph 1"}]},
+    {"id": "char-003", "name": "苏棠", "description": "warns 林舟", "claim_status": "fact", "confidence": "high", "evidence": [{"source_id": "sample-novel", "chapter": "ch-002", "locator": "paragraph 1"}]}
+  ],
+  "plots": [
+    {"id": "plot-001", "title": "调查失踪", "description": "林舟从车站线索追到北桥录音", "resolution": "open", "claim_status": "fact", "confidence": "high", "evidence": [{"source_id": "sample-novel", "chapter": "ch-001", "locator": "paragraph 1"}, {"source_id": "sample-novel", "chapter": "ch-002", "locator": "paragraph 1"}, {"source_id": "sample-novel", "chapter": "ch-003", "locator": "paragraph 1"}]}
+  ],
+  "relationships": [
+    {"id": "rel-001", "from_id": "char-001", "to_id": "char-002", "relationship": "siblings", "claim_status": "fact", "confidence": "high", "evidence": [{"source_id": "sample-novel", "chapter": "ch-001", "locator": "paragraph 1"}]}
+  ],
+  "foreshadowing": [
+    {"id": "fore-001", "description": "蓝色纽扣与月牙图案", "status": "possibly_revealed", "claim_status": "inference", "confidence": "medium", "evidence": [{"source_id": "sample-novel", "chapter": "ch-001", "locator": "paragraph 1"}, {"source_id": "sample-novel", "chapter": "ch-002", "locator": "paragraph 1"}]}
+  ],
+  "timeline": [
+    {"id": "time-001", "description": "林遥三天前到过车站", "mode": "linear", "claim_status": "fact", "confidence": "high", "evidence": [{"source_id": "sample-novel", "chapter": "ch-001", "locator": "paragraph 1"}]}
+  ],
+  "style": [
+    {"id": "style-001", "description": "Limited third-person focus, short suspense scenes, concrete clues", "claim_status": "inference", "confidence": "medium", "evidence": [{"source_id": "sample-novel", "locator": "chapters ch-001–003"}]}
+  ],
+  "uncertainties": [
+    {"id": "uncertain-001", "description": "林遥当前下落未知", "claim_status": "uncertain", "confidence": "high", "evidence": [{"source_id": "sample-novel", "chapter": "ch-003", "locator": "paragraph 1"}]}
+  ],
+  "quality": {"coverage": "all three supplied chapters indexed", "checks": ["strict JSON", "evidence and statuses present"], "limitations": ["short sample; author unknown"]}
+}
