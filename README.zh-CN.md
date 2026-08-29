@@ -183,14 +183,14 @@ novel-distiller/
 │   ├── input/                  # 虚构示例输入
 │   └── output/                 # 对应的 Markdown 与 JSON 输出
 ├── tests/                      # Skill 契约与可选工具测试
-└── novel_distiller/            # 可选的历史 Python 工具
+└── optional-tooling/python/    # 可选 Python 工具
 ```
 
 ## 可选 Python 工具
 
 仓库保留了早期的 Python 包和 CLI，供明确需要本地工具的用户选择。该工具有独立的依赖和模型服务配置，默认 Skill 流程**不会安装、导入或调用**它。
 
-只有在主动选择可选工具路径时，才需要查看 `requirements.txt` 和 `setup.py`。
+可选产品位于 `optional-tooling/python/`，需要单独安装。根目录 `setup.py` 和 `requirements.txt` 仅是一个版本周期的兼容转发层。
 
 ## 文档导航
 

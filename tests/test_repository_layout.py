@@ -11,6 +11,10 @@ def test_optional_python_product_has_a_single_package_root():
     assert (product / "novel_distiller/__init__.py").is_file()
     assert not (ROOT / "novel_distiller").exists()
     assert not (product / "tests/__init__.py").exists()
+    for readme in (ROOT / "README.md", ROOT / "README.zh-CN.md"):
+        text = readme.read_text("utf-8")
+        assert "optional-tooling/python/" in text
+        assert "└── novel_distiller/" not in text
 
 def test_requirements_compatibility_files_are_ascii():
     for path in [ROOT / "requirements.txt", ROOT / "optional-tooling/python/requirements.txt"]:
