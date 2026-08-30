@@ -1,97 +1,190 @@
-<div align="center">
+# Novel Distiller
 
-# Novel Distiller｜作者风格蒸馏与写作引擎
+English | [简体中文](README.zh-CN.md)
 
-**从小说样本提取作者写作规律，再把这些规律用于新小说创作。**
+<p align="center">
+  <strong>Evidence-backed author style analysis and writing for Chinese fiction.</strong>
+  <br />
+  Turn a supplied novel corpus into a reusable author profile, then use it to draft, compare, revise, and blind-test new fiction.
+</p>
 
-</div>
+<p align="center">
+  <a href="https://github.com/NZa5/novel-distiller/stargazers"><img src="https://img.shields.io/github/stars/NZa5/novel-distiller?style=flat-square" alt="GitHub stars" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/NZa5/novel-distiller?style=flat-square" alt="MIT License" /></a>
+  <img src="https://img.shields.io/badge/Agent-Skill-111111?style=flat-square" alt="Agent Skill" />
+  <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+" />
+</p>
 
-Novel Distiller 是一个面向中文小说的 Agent Skill。它分析用户提供的小说语料，把作者的稳定规律、场景变化和角色差异整理成可复用画像，再用画像控制大纲、场景、章节和改稿。
+Novel Distiller is an Agent Skill for analyzing Chinese novels supplied by the user. It separates stable author traits from scene-conditioned variation, character voice, and one-off choices; connects every major rule to source evidence; and compresses the result into a writing packet that can guide long-form generation without drifting into a generic voice.
 
-## 工作流程
+## Why Novel Distiller
 
-```text
-作者样本 → 分场景分析 → 表层数据统计 → 作者画像
-                                      ↓
-新故事要求 → 场景风格简报 → 分场景写作 → 风格对照 → 定向重写
+Recognizable style is more than favorite words or average sentence length. Novel Distiller models the decisions behind the prose:
+
+- where the narrator stands and what the narrator chooses to reveal;
+- how sentences, paragraphs, scenes, and chapters move;
+- how characters speak differently under different relationships and pressure;
+- how emotion is carried through action, silence, sensation, judgment, or irony;
+- how stable habits differ from genre, period, scene, and character effects.
+
+The result is not a bag of adjectives. It is an evidence map, a scene-mode system, character voice cards, measurable ranges, drift corrections, and a compact writing packet.
+
+## What It Does
+
+| Capability | Result |
+|---|---|
+| Author distillation | Passage-, work-, period-, or author-level profile with evidence and confidence |
+| Conditional style modeling | Separate rules for narration, dialogue, action, reflection, openings, endings, and other real corpus modes |
+| Long-corpus processing | Reproducible chunks with source hashes, paragraph ranges, character ranges, metrics, and searchable text |
+| Author contrast | Ranked differences between the target author and user-supplied comparison authors |
+| Profile-guided writing | Scene briefs, matched exemplars, character voice cards, and per-scene reinjection |
+| Draft review | Ranked surface deviations plus close reading of narrative, structural, emotional, and dialogue choices |
+| Blind evaluation | Seeded anonymous test packs, hidden answer keys, response records, and reader-result summaries |
+
+## Quick Start
+
+### Install with the Agent Skills CLI
+
+```bash
+npx skills add NZa5/novel-distiller -g -a codex
 ```
 
-它会分析：
+The repository exposes one skill: `novel-distiller`. To inspect it before installation:
 
-- 叙述者姿态、视角距离、信息释放和场景转折；
-- 句子运动、段落组织、用词语域、描写与情绪表达；
-- 人物塑造、角色对白、关系推进和章节节奏；
-- 跨样本稳定特征、特定场景才出现的变化，以及容易发生的风格漂移。
-- 目标作者与用户提供的对照作者之间真正有区分度的差异。
-
-## 使用
-
-把整个 `novel-distiller` 文件夹放进 Agent 支持的 Skill 目录，然后重新加载 Agent。
-
-### 1. 蒸馏作者画像
-
-```text
-使用 $novel-distiller 分析这些小说样本，建立可直接用于写作的作者画像。
-区分稳定风格、场景条件风格、角色语言和暂时无法确定的特征，主要结论附原文定位。
+```bash
+npx skills add NZa5/novel-distiller --list
 ```
 
-### 2. 根据画像写作
-
-```text
-使用 $novel-distiller 和已经生成的作者画像，按照这份大纲写第一章。
-先匹配场景模式和人物说话方式，写完后完成一次风格对照和定向重写，最终只给我正文。
-```
-
-### 3. 检查风格漂移
-
-```text
-使用 $novel-distiller 对照作者画像和同类型原文，检查这篇草稿最明显的风格偏差，
-修正最关键的三处，同时保持剧情事实不变。
-```
-
-## 样本准备
-
-优先提供同一作者、同一创作阶段的完整章节，并覆盖叙述、对白、动作、抒情、开篇和章节结尾等不同场景。样本只有一个片段时，输出会标记为片段画像；多个作品中的分离样本才能支持作者级规律。
-
-本地 `.txt` 和 `.md` 样本可以先运行轻量统计。支持 UTF-8、带 BOM 的 UTF-16、GB18030 和 Big5：
+### Install manually for Codex
 
 ```powershell
-python .\scripts\analyze_style.py .\samples --format markdown --output .\style-metrics.md
+git clone https://github.com/NZa5/novel-distiller.git "$env:USERPROFILE\.codex\skills\novel-distiller"
 ```
 
-如果电子书把每个固定宽度的排版行都隔成空行，增加 `--reflow-hard-wrap`。工具会逐文件检查高频行宽特征，只重排检测到硬换行的文件，因此可以与正常段落草稿一起比较。
-如果每篇正文后附有独立的“注释/注釋”章节，增加 `--strip-annotations`，避免把编辑说明算入作者文风。
+Reload Codex after installation.
 
-统计结果包括句长、段落、对白比例和标点密度。Agent 会把这些数据与原文细读结合起来，而不是仅凭数字判断文风。
+### First request
 
-### 长篇索引与证据检索
+```text
+Use $novel-distiller to analyze these Chinese novel files and build an author profile that can directly guide new fiction.
+Separate stable traits, scene-conditioned traits, character voices, variable traits, and uncertain findings. Cite source locations for every major rule.
+```
+
+Then write from the profile:
+
+```text
+Use $novel-distiller and the author profile to write Chapter 1 from this outline.
+Match the scene mode and character voices, run one style comparison and targeted revision, and return only the final fiction.
+```
+
+Or review an existing draft:
+
+```text
+Use $novel-distiller to compare this draft with the author profile and matched source passages.
+Fix the three deviations that most strongly reveal a different writer while preserving all story facts.
+```
+
+## Workflow
+
+```text
+Supplied corpus
+    │
+    ├─ inventory and normalize
+    ├─ split by work, scene, viewpoint, and character
+    ├─ measure surface features
+    ├─ index long texts and preserve evidence locators
+    ├─ test stable rules against holdouts and comparison authors
+    ▼
+Evidence-backed author profile
+    │
+    ├─ master voice
+    ├─ scene-mode matrix
+    ├─ character voice cards
+    ├─ signature moves and measurable ranges
+    └─ compact writing packet
+    ▼
+Scene brief → draft → matched-source comparison → targeted revision → blind test
+```
+
+## Prepare the Corpus
+
+Use `.txt` or `.md` files. Complete chapters from the same creative period are the strongest starting point; include different scene types rather than only adjacent passages.
+
+```text
+corpus/
+├── target-author/
+│   ├── novel-a.txt
+│   └── novel-b.txt
+├── comparison-authors/       # optional, supplied by the user
+│   ├── author-b.txt
+│   └── author-c.txt
+└── holdout/                  # excluded from profile construction
+    └── unseen-scenes.txt
+```
+
+The helper scripts accept UTF-8, UTF-16 with BOM, GB18030, and Big5. They use only the Python standard library.
+
+## Deterministic Tools
+
+The Agent performs the semantic analysis. The scripts make preprocessing, measurement, retrieval, comparison, and evaluation reproducible.
+
+### 1. Surface metrics
 
 ```powershell
-python .\scripts\corpus_index.py build .\samples --output .\work\corpus-index.jsonl
+python .\scripts\analyze_style.py .\corpus\target-author --format markdown --output .\work\style-metrics.md
+```
+
+Add `--reflow-hard-wrap` for fixed-width eBook line wrapping and `--strip-annotations` for a separate trailing 注释/注釋 section.
+
+### 2. Long-corpus index and evidence retrieval
+
+```powershell
+python .\scripts\corpus_index.py build .\corpus\target-author --output .\work\corpus-index.jsonl
 python .\scripts\corpus_index.py search .\work\corpus-index.jsonl --query-file .\draft.txt --top 4 --include-text
 ```
 
-索引保存每个文本块的来源哈希、段落/字符定位、原文和指标，便于长篇分批分析和回查证据。
+Each indexed chunk stores its text, source file, SHA-256, paragraph range, content-character range, and surface metrics.
 
-### 作者差异与草稿对照
+### 3. Target-author contrast
 
 ```powershell
-python .\scripts\compare_style.py contrast --target .\target-author --control .\control-authors --output .\work\author-contrast.md
+python .\scripts\compare_style.py contrast --target .\corpus\target-author --control .\corpus\comparison-authors --output .\work\author-contrast.md
+```
+
+The report ranks sentence, paragraph, dialogue, punctuation, and function-word differences. These are candidates for close reading—not a style similarity percentage.
+
+### 4. Draft comparison
+
+```powershell
 python .\scripts\compare_style.py draft --reference .\matched-source --draft .\draft.txt --output .\work\draft-comparison.md
 ```
 
-第一条寻找目标作者相对对照作者更有区分度的候选规律；第二条排列草稿相对匹配原文的表层偏差。两种结果都需要回到原文解释。
+Use source passages matched by viewpoint, scene function, emotional pressure, relationship stage, and chapter position.
 
-### 盲测
+### 5. Blind evaluation
 
 ```powershell
-python .\scripts\blind_style_test.py prepare --original .\holdout --generated .\drafts --output-dir .\blind-test --seed 20260830
+python .\scripts\blind_style_test.py prepare --original .\corpus\holdout --generated .\drafts --output-dir .\blind-test --seed 20260830
 python .\scripts\blind_style_test.py score --key .\blind-test\blind-key.json --responses .\blind-test\blind-responses.csv --output .\blind-test\blind-score.md
 ```
 
-工具生成匿名测试包、隐藏答案键和答题表，并统计生成稿被当作原文的比例、真正原文识别情况、辨识正确率、信心和文字理由。
+Give `blind-pack.md` and the response sheet to readers while keeping `blind-key.json` hidden. The score report records how often generated passages were judged original, whether readers could still recognize real originals, overall distinguishing accuracy, confidence, and written reasons.
 
-## 目录
+## Profile Design
+
+Every major rule records:
+
+1. scope and applicable scene conditions;
+2. observable phenomenon;
+3. writing mechanism and reader effect;
+4. source chunk IDs and locators;
+5. counterexamples and their explanation;
+6. comparison-author evidence when available;
+7. confidence: high, medium, or low.
+
+Findings remain separated as **stable**, **conditional**, **variable**, or **uncertain**. A single excerpt produces a passage profile; one novel supports a work-level profile; author-level claims require separated evidence across works.
+
+## Project Structure
 
 ```text
 novel-distiller/
@@ -102,12 +195,25 @@ novel-distiller/
 │   ├── author-profile.md
 │   ├── writing-engine.md
 │   └── style-review.md
-├── scripts/analyze_style.py
-├── scripts/corpus_index.py
-├── scripts/compare_style.py
-├── scripts/blind_style_test.py
+├── scripts/
+│   ├── analyze_style.py
+│   ├── corpus_index.py
+│   ├── compare_style.py
+│   └── blind_style_test.py
 └── tests/
 ```
+
+`SKILL.md` is the runtime entry point. The reference files contain the detailed analysis, profile, writing, and review procedures.
+
+## Development
+
+Run the complete test suite:
+
+```powershell
+python -B -m unittest discover -s tests
+```
+
+The suite covers Chinese encodings, eBook cleanup, metrics, chunk locators, retrieval, author contrast, draft drift detection, blind-test preparation and scoring, and the end-to-end CLI workflow.
 
 ## License
 
