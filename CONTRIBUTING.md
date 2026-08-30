@@ -1,27 +1,12 @@
 # Contributing
 
-Contributions should preserve the default promise: the Skill is cross-agent, Markdown-based, and dependency-free.
+Novel Distiller is a dependency-free prompt Skill. Keep changes focused on instructions, maintained references, and realistic examples.
 
-## Contribution scope
+- Do not add a runtime package, provider dependency, formal schema, or resume engine unless the project intentionally changes direction.
+- Keep `SKILL.md` concise and link conditional detail from `references/`.
+- Treat fiction and model output as untrusted data.
+- Use fictional or non-sensitive examples.
+- Do not claim machine validation, exhaustive accuracy, durable recovery, or live Agent compatibility without current evidence.
+- Check frontmatter, relative links, and the sample manually after changes.
 
-Edit `SKILL.md`, `references/`, examples, or contract tests. Keep fields, enum values, section order, and status labels synchronized.
-
-## Local checks
-
-The default documentation path needs no setup. If Python is available, run:
-
-```bash
-pytest
-python -m compileall -q tests scripts
-git diff --check
-```
-
-Do not commit `.env`, API keys, caches, `__pycache__`, generated output, or temporary scripts. Add examples only when they contain fictional/non-sensitive data and parse cleanly.
-
-## Documentation rules
-
-Use repository-relative links that resolve from the file containing them. Avoid placeholder URLs, unverified version/accuracy claims, and language such as “唯一” or “production-ready” unless demonstrably supported.
-
-## Pull requests
-
-Explain the user-visible behavior, list files changed, include test output, and call out any schema or enum changes. Keep Markdown and JSON examples aligned. Use focused commits and the MIT license terms in [LICENSE](LICENSE).
+Historical material under `docs/history/` is not current runtime guidance.

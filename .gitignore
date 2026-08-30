@@ -2,33 +2,7 @@
 .env
 .env.local
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual environments and isolated worktrees
-venv/
-env/
-ENV/
-.venv
+# Isolated worktrees
 .worktrees/
 
 # IDE
@@ -38,15 +12,9 @@ ENV/
 *.swo
 *~
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-
 # Generated output (keep only the published documentation fixtures)
 output/
 !examples/output/
 examples/output/*
 !examples/output/sample_distillation.md
-!examples/output/sample_distillation.json
 *.log

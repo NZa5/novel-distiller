@@ -1,26 +1,14 @@
 # Quickstart
 
-## Zero-dependency path (recommended)
-
-1. Copy or clone the repository.
-2. Give your Agent access to `SKILL.md` and its neighboring `references/` directory. Do not create `.env` or install Python packages.
-3. Attach a TXT/EPUB, paste text, or provide a readable attachment.
+1. Copy or clone the `novel-distiller` folder into a Skill location supported by your Agent.
+2. Keep `SKILL.md` and `references/` together.
+3. Paste fiction or provide a readable TXT, EPUB, or other text attachment.
 4. Ask:
 
-   > 按 novel-distiller/SKILL.md 蒸馏这份小说，分析人物、情节、关系、伏笔、时间线和风格；输出 Markdown 和严格 JSON。
+   > 使用 novel-distiller 从主要维度分析这篇小说，包括结构、人物、关系、世界、主题、象征、信息、时间线、叙事视角、文风和阅读体验；主要结论附原文定位，并区分事实、推断和不确定项。
 
-The Agent will identify scope, chunk long text, preserve source locators, label fact/inference/uncertain, and run the quality gate. See [INSTALL.md](INSTALL.md) for host-specific placement.
+Markdown is the default output. Ask for JSON only when you need structured interchange; it follows a suggested format rather than a formal validated schema.
 
-## Examples
+For long text, provide sections in source order. The Skill can maintain a compact running index in the current conversation, but it does not guarantee resume after a restart or context loss.
 
-Use [sample_novel.md](examples/input/sample_novel.md) as input and compare [sample_distillation.md](examples/output/sample_distillation.md) and [sample_distillation.json](examples/output/sample_distillation.json).
-
-## Input notes
-
-TXT, pasted text, and readable attachments work directly. EPUB works when the host Agent can read its contents; otherwise export it to TXT or paste the relevant text. Partial inputs are marked as `partial_text` or `excerpt`, and do not produce whole-book claims.
-
-## Troubleshooting
-
-- **Agent cannot read EPUB:** export to TXT or provide pasted/readable content.
-- **Text is too long:** the workflow automatically uses chunk IDs and intermediate indexes; ask for staged continuation if the host context is limited.
-- **A claim is uncertain:** inspect its evidence locator; the Skill intentionally does not turn ambiguity into fact.
+See [INSTALL.md](INSTALL.md) for placement and [sample_distillation.md](examples/output/sample_distillation.md) for an example.

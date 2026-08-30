@@ -1,7 +1,10 @@
-# Distillation Workflow
-1. Apply the [security policy](security-policy.md), select language, map anonymous sources, and reject unsafe readers.
-2. Segment in source order with stable chapter/chunk IDs, non-overlapping core spans and adjacent read overlap.
-3. Repeat the untrusted-data boundary for every index call; store locators and paraphrases, not raw chunks.
-4. Merge exact locator duplicates only. Retain semantic merge candidates, disputed aliases, contradictions and distinct repeated events.
-5. Keep state in context by default. Persist only to a user-requested new destination and follow [intermediate state](intermediate-state.md); never overwrite or persist raw text.
-6. Revisit sources for major claims, validate Schema/semantic references/quotes, then render JSON-derived safe Markdown.
+# Long-Text Workflow
+
+1. Record the supplied scope and source order.
+2. Split at volumes, chapters, scenes, or paragraph groups. Use simple labels such as `chapter 3` or `chunk 04`.
+3. For each part, note characters and aliases, events and causality, relationship changes, clues, time markers, style observations, contradictions, and open questions.
+4. Carry forward a compact index rather than the raw text. Do not merge disputed aliases or interpretations prematurely.
+5. After all available parts are processed, combine the indexes and revisit source passages supporting the most important conclusions.
+6. State coverage and missing sections before presenting the final synthesis.
+
+Keep intermediate notes in the current conversation unless the user asks for a new file. This workflow helps continuity inside the available context; it does not guarantee recovery after a restart, context loss, or a different Agent session.
