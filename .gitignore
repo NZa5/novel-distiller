@@ -1,20 +1,9 @@
-# Environment variables
 .env
-.env.local
-
-# Isolated worktrees
-.worktrees/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# Generated output (keep only the published documentation fixtures)
+.env.*
+!.env.example
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
 output/
-!examples/output/
-examples/output/*
-!examples/output/sample_distillation.md
 *.log
