@@ -19,18 +19,6 @@ Use [sample_novel.md](examples/input/sample_novel.md) as input and compare [samp
 
 TXT, pasted text, and readable attachments work directly. EPUB works when the host Agent can read its contents; otherwise export it to TXT or paste the relevant text. Partial inputs are marked as `partial_text` or `excerpt`, and do not produce whole-book claims.
 
-## Optional Python tooling
-
-Only if you explicitly want the retained local CLI:
-
-```bash
-python -m venv .venv
-.venv/bin/pip install -e optional-tooling/python
-python -m novel_distiller distill novel.txt --output output/
-```
-
-This is optional tooling, not a Skill requirement. Provider credentials, if that tool uses them, are configured separately; the default Skill never asks for them.
-
 ## Troubleshooting
 
 - **Agent cannot read EPUB:** export to TXT or provide pasted/readable content.

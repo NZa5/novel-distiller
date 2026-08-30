@@ -183,15 +183,8 @@ novel-distiller/
 ├── examples/
 │   ├── input/                  # Fictional sample input
 │   └── output/                 # Matching Markdown and JSON output
-├── tests/                      # Skill contract and optional-tool tests
-└── optional-tooling/python/    # Optional Python tooling
+└── tests/                      # Skill contract tests
 ```
-
-## Optional Python Tooling
-
-The repository retains an earlier Python package and CLI for users who explicitly want local tooling. It has separate dependencies and provider configuration; it is **not** installed, imported, or invoked by the default Skill workflow.
-
-Use `optional-tooling/python/` for the separately installed optional product. Root `setup.py` and `requirements.txt` are one-release compatibility shims.
 
 ## Documentation
 

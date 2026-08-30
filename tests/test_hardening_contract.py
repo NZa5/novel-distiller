@@ -1,5 +1,4 @@
 import json
-import re
 import zipfile
 from pathlib import Path
 
@@ -20,11 +19,12 @@ def test_release_builder_supports_nested_output_and_rejects_forbidden_files(tmp_
 
 
 def test_root_surface_does_not_offer_provider_configuration():
-    for path in [ROOT / ".env.example", ROOT / "README.md", ROOT / "README.zh-CN.md"]:
+    assert not (ROOT / ".env.example").exists()
+    assert not (ROOT / "setup.py").exists()
+    assert not (ROOT / "requirements.txt").exists()
+    for path in [ROOT / "README.md", ROOT / "README.zh-CN.md"]:
         text = path.read_text("utf-8")
         assert "OPENAI_API_KEY=" not in text
-    setup = (ROOT / "setup.py").read_text("utf-8")
-    assert "optional-tooling/python" in setup
 
 
 def test_complex_fixtures_cover_distinct_security_and_fiction_cases():
@@ -47,15 +47,9 @@ def test_intermediate_state_examples_are_readable_and_versioned():
     assert state["checkpoint"]["status"] == "committed"
 
 
-def test_ci_has_required_offline_and_manual_live_boundaries():
+def test_ci_has_required_skill_release_boundaries():
     skill = (ROOT / ".github/workflows/skill-ci.yml").read_text("utf-8")
-    tooling = (ROOT / ".github/workflows/python-tooling-ci.yml").read_text("utf-8")
     assert "git diff --check" in skill and "build_skill_release.py" in skill
     assert "release.yml" in {p.name for p in (ROOT / ".github/workflows").iterdir()}
-    assert "live-provider" in tooling and "workflow_dispatch" in tooling
-    assert "--strict-markers" in tooling and "--cov-fail-under=35" in tooling
-    assert "windows-latest" in tooling and "python -m build optional-tooling/python" in tooling
+    assert not (ROOT / ".github/workflows/python-tooling-ci.yml").exists()
     assert "actions/upload-artifact@" in (ROOT / ".github/workflows/release.yml").read_text("utf-8")
-    checkout_sha = "11bd71901bbe5b1630ceea73d27597364c9af683"
-    checkout_refs = re.findall(r"actions/checkout@([0-9a-f]{40})", tooling)
-    assert checkout_refs == [checkout_sha, checkout_sha, checkout_sha]

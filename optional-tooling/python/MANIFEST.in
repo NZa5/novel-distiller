@@ -1,6 +1,0 @@
-include README.md
-include pyproject.toml
-recursive-include novel_distiller *.py
-recursive-exclude tests *
-recursive-exclude docs *
-recursive-exclude examples *

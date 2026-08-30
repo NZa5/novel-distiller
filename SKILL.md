@@ -9,7 +9,7 @@ metadata:
 
 # Novel Distiller
 
-Use this file as the **only default runtime entry point**. Work with the host Agent's existing ability to read text and attachments. Do not require an API key, environment variable, Python, pip, package installation, network service, or the optional `novel_distiller/` package.
+Use this file as the **only runtime entry point**. Work with the host Agent's existing ability to read text and attachments. Do not require an API key, environment variable, Python, pip, package installation, or an added network service.
 
 ## Trigger conditions
 

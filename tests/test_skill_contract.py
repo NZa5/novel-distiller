@@ -21,22 +21,22 @@ README_SECTIONS = {
     "README.md": [
         "Why Novel Distiller?", "Features", "How It Works", "Quick Start",
         "Example Output", "Supported Inputs and Scope", "Output Contract",
-        "Agent Compatibility", "Repository Structure", "Optional Python Tooling",
+        "Agent Compatibility", "Repository Structure",
         "Documentation", "Roadmap", "Contributing", "License",
     ],
     "README.zh-CN.md": [
         "为什么选择 Novel Distiller？", "核心能力", "工作原理", "快速开始",
         "输出示例", "支持的输入与分析范围", "输出规范", "Agent 兼容性",
-        "仓库结构", "可选 Python 工具", "文档导航", "路线图", "参与贡献",
+        "仓库结构", "文档导航", "路线图", "参与贡献",
         "开源协议",
     ],
 }
 
 
-def test_skill_is_dependency_free_default_entrypoint():
+def test_skill_is_dependency_free_entrypoint():
     text = (ROOT / "SKILL.md").read_text(encoding="utf-8")
     assert text.startswith("---")
-    assert "only default runtime entry point" in text
+    assert "only runtime entry point" in text
     assert "API key" in text and "pip" in text and "Python" in text
     assert "references/" in text
 

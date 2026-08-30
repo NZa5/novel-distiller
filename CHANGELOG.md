@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- Removed the optional Python package, CLI, compatibility shims, and dedicated CI workflow. The repository now ships only the dependency-free Agent Skill.
+
 ## Skill 2.0.0
 - Published strict output Schema 2.0.0 and resumable state protocol 1.0.0.
 - Added source-boundary, privacy, quote-budget, bilingual discovery, and deterministic Skill artifact contracts.
