@@ -10,6 +10,7 @@ English | [简体中文](README.zh-CN.md)
 
 <p align="center">
   <a href="https://github.com/NZa5/novel-distiller/stargazers"><img src="https://img.shields.io/github/stars/NZa5/novel-distiller?style=flat-square" alt="GitHub stars" /></a>
+  <a href="https://github.com/NZa5/novel-distiller/releases/latest"><img src="https://img.shields.io/github/v/release/NZa5/novel-distiller?style=flat-square" alt="Latest release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/NZa5/novel-distiller?style=flat-square" alt="MIT License" /></a>
   <img src="https://img.shields.io/badge/Agent-Skill-111111?style=flat-square" alt="Agent Skill" />
   <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+" />
@@ -56,13 +57,17 @@ The profile distinguishes passage-, work-, period-, and author-level claims. Aut
 
 ### Install
 
-This repository follows the portable Agent Skills folder format with `SKILL.md` as its entry point. Clone or copy the complete directory into the skills location configured by any Agent Skills-compatible host:
+This repository follows the portable Agent Skills folder format with `SKILL.md` as its entry point.
+
+For a stable packaged version, open the [latest release](https://github.com/NZa5/novel-distiller/releases/latest), download `novel-distiller-skill-<version>.zip` and its `.sha256` file, verify the checksum, then extract the included `novel-distiller/` directory into the skills location configured by your Agent Skills-compatible host.
+
+To follow the latest development version instead, clone the default branch:
 
 ```bash
 git clone https://github.com/NZa5/novel-distiller.git /path/to/skills/novel-distiller
 ```
 
-Keep `SKILL.md`, `scripts/`, and `references/` together. Reload or rescan skills according to the host's normal procedure.
+Keep `SKILL.md`, `scripts/`, and `references/` together. Reload or rescan skills according to the host's normal procedure. Release ZIP files are fixed snapshots and do not change when the default branch receives later commits.
 
 ### First request
 

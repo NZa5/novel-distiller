@@ -10,6 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/NZa5/novel-distiller/stargazers"><img src="https://img.shields.io/github/stars/NZa5/novel-distiller?style=flat-square" alt="GitHub stars" /></a>
+  <a href="https://github.com/NZa5/novel-distiller/releases/latest"><img src="https://img.shields.io/github/v/release/NZa5/novel-distiller?style=flat-square" alt="最新版本" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/NZa5/novel-distiller?style=flat-square" alt="MIT License" /></a>
   <img src="https://img.shields.io/badge/Agent-Skill-111111?style=flat-square" alt="Agent Skill" />
   <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+" />
@@ -56,13 +57,17 @@ Novel Distiller 只分析用户提供的中文小说正文和元数据。它把�
 
 ### 安装
 
-本仓库采用可移植的 Agent Skills 文件夹格式，入口为 `SKILL.md`。将完整目录克隆或复制到任意兼容 Agent Skills 的宿主所配置的 skills 位置：
+本仓库采用可移植的 Agent Skills 文件夹格式，入口为 `SKILL.md`。
+
+需要稳定安装包时，打开[最新 Release](https://github.com/NZa5/novel-distiller/releases/latest)，下载 `novel-distiller-skill-<版本>.zip` 及对应的 `.sha256` 文件，校验后把压缩包中的 `novel-distiller/` 目录解压到兼容 Agent Skills 的宿主所配置的 skills 位置。
+
+需要跟随最新开发版本时，克隆默认分支：
 
 ```bash
 git clone https://github.com/NZa5/novel-distiller.git /path/to/skills/novel-distiller
 ```
 
-保持 `SKILL.md`、`scripts/` 和 `references/` 位于同一目录，并按宿主的正常方式重新加载或扫描 skills。
+保持 `SKILL.md`、`scripts/` 和 `references/` 位于同一目录，并按宿主的正常方式重新加载或扫描 skills。Release ZIP 是固定快照，不会随着默认分支之后的提交自动变化。
 
 ### 第一次使用
 
