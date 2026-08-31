@@ -1,4 +1,4 @@
 interface:
-  display_name: "Novel Distiller 作者风格引擎"
-  short_description: "蒸馏中文小说作者风格并据此完成写作、复检、回炉与持续纠偏"
-  default_prompt: "使用 $novel-distiller 分析这些小说样本，建立作者画像，并用它完成我要求的新小说内容。"
+  display_name: "Novel Distiller 作者分析器"
+  short_description: "分析用户提供的中文小说并生成可复用作者画像"
+  default_prompt: "使用 $novel-distiller 只分析我提供的中文小说，生成带证据的完整作者画像和机器可读写作包。"

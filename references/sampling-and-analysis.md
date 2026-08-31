@@ -1,5 +1,7 @@
 # 取样与分析
 
+只分析用户提供的小说正文与随附元数据。不要联网补充作者作品、评论、传记或对照语料。用户没有提供对照作者时，只判断规律在当前语料中的重复与变化，把跨作者区分度标为 `not_tested`。
+
 ## 先确定画像层级
 
 - **片段画像**：只描述当前段落怎样运作。
@@ -25,6 +27,48 @@
 | 证据定位 | 索引 chunk_id、来源 SHA-256、段落范围和内容字符范围 |
 
 优先让样本覆盖不同场景，而不是连续截取大量同质段落。连续章节适合分析作品节奏；相隔较远的章节和不同作品更适合判断稳定规律。
+
+长篇语料先生成机器可读清单：
+
+```bash
+python scripts/corpus_index.py manifest corpus --output work/corpus-manifest.json
+```
+
+生成结果只是待编辑骨架。必须人工核对每个 `path` 与 `work_id`；同一部小说拆成多个章节文件时，这些文件必须使用同一个 `work_id`。可在来源级 `metadata` 或段落范围 `segments` 中记录 `scene_id`、`scene_type`、`viewpoint`、`characters`、`relationship_state`、`emotion`、`chapter_position` 和 `holdout`。不确定字段保留为空，不要把文件名推断或模型猜测写成已核实元数据。
+
+`segments` 的定位依据是预处理后的非空段落编号。清单、索引与分析统计必须使用相同的 `--reflow-hard-wrap` 和 `--strip-annotations` 选项；改变清单或预处理后重建索引和取样账本。
+
+## 可复现的分层取样
+
+先对全部文件建立清单和表层统计，再决定需要精读的语义样本。精读样本必须覆盖：
+
+- 每一部作品，而不是按总文本块混在一起抽取；
+- 开篇、中段、高潮前后和结尾等不同章节位置；
+- 叙述、对白、行动、反思、描写、过渡和揭示等真实场景类型；
+- 主要视角人物、重要角色及不同关系压力；
+- 用户提供的创作时期、笔名或版本分组。
+
+使用工具生成持久取样账本：
+
+```bash
+python scripts/corpus_index.py sample work/corpus-index.jsonl --output work/sampling-ledger.json --budget 40 --holdout-ratio 0.2 --seed 20260831
+```
+
+工具先按作品轮转；每轮在当前作品内计算场景类型、视角、角色、关系状态、情绪和章节位置的覆盖新颖度，优先选择当前欠覆盖的已标注取值，再用稳定哈希打破同分，在预算内生成 `analysis` 与 `holdout` 条目。每个维度独立归一，标签较多的文本块不会仅因标签数量更多而占优。相同索引、预算、比例和种子会得到相同选择。未标注取值进入 `unknown` 分层，不能把它当成已完成真实语义覆盖。
+
+如果必须设置精读预算，先公开记录语义文本块总数 `B`。作品通过轮转获得近似等额机会，六类语义元数据通过欠覆盖优先评分参与选择。该算法只根据已经写入清单的离散标签平衡覆盖，不理解未标注含义，也不保证有限预算覆盖所有标签；若覆盖摘要仍有缺口，使用语义检索定向补读，并把补读理由写入证据卡或规则账本。
+
+每次完成精读后更新账本，跨会话继续时仍使用同一索引：
+
+```bash
+python scripts/corpus_index.py mark work/sampling-ledger.json --index work/corpus-index.jsonl --chunk-id <chunk-id> --status analyzed --note "完成精读"
+```
+
+可用状态为 `pending`、`analyzed`、`skipped` 和 `needs_followup`。留出条目不能提前改成分析条目。`mark` 会核对当前索引 SHA-256；索引发生变化时必须重新生成账本，避免旧进度错配新文本。
+
+长作品可以贡献更多局部观察，但不能因为文本更长就在跨作品归纳中自动获得更高权重。先分别总结每部作品，再比较作品级结论；作者级结论按作品覆盖、场景覆盖和反例解释综合判断。
+
+如果上下文不能精读全部语料，采用“全量表层统计 → 分层精读 → 根据缺口和矛盾定向补读”的顺序，并在覆盖矩阵中列出尚未处理的作品、场景、视角和角色。
 
 ## 分层分析
 
@@ -85,7 +129,9 @@
 - 常用中文标点的每千字符频率；
 - 多文件之间的指标范围。
 
-先检查电子书是否存在固定行宽造成的硬换行：如果几乎每个三十余字的排版行后都有一个空行，普通模式会把排版行误认成段落。此时使用 `--reflow-hard-wrap`；工具按高频行宽特征逐文件判断，只重排命中的文件，因此硬换行原文可以与正常段落草稿混合比较。报告和 JSON 会记录每个文件是否实际执行了重排。
+预处理后的每个非空行按一个中文小说段落统计，因此同时支持“段落之间空一行”和“每段直接换行”的常见 TXT 格式。固定宽度电子书的排版行不是真实段落，必须先检查并使用下述重排选项。
+
+先检查电子书是否存在固定行宽造成的硬换行：如果几乎每个三十余字的排版行后都有一个空行，普通模式会把排版行误认成段落。未启用重排时，报告会把检测结果列入“警告”，并在分文件表标成“疑似硬换行未重排”。核对原文后再使用 `--reflow-hard-wrap`；工具按高频行宽特征逐文件判断，只重排命中的文件。报告和 JSON 会分别记录“检测到”“请求重排”和“实际重排”。
 
 再检查篇末是否附有编辑注释。文件用独立的“注释/注釋”标题分隔正文与说明时，使用 `--strip-annotations`，让统计在该标题处停止。脚注标记、OCR 异体和其他版本噪音仍需在语料清单中记录并人工核对。
 
@@ -93,31 +139,31 @@
 
 ## 长篇切块与证据检索
 
-先为长篇语料建立可重复使用的索引：
+先用已核对的清单建立 schema v3 索引：
 
-```powershell
-python .\scripts\corpus_index.py build .\corpus --output .\work\corpus-index.jsonl --chunk-chars 1800
+```bash
+python scripts/corpus_index.py build corpus --manifest work/corpus-manifest.json --output work/corpus-index.jsonl --chunk-chars 1800
 ```
 
-每条 JSONL 记录保存原文、来源文件、SHA-256、段落范围、内容字符范围和表层指标。原文件变化后，来源哈希也会变化，旧定位不能继续当作同一版本的证据。
+每条 JSONL 记录保存原文、来源文件、作品编号、时期、场景/视角/角色/关系/情绪/章节位置元数据、留出标记、SHA-256、预处理参数与指纹、段落范围、内容字符范围和表层指标。`chunk_id` 同时绑定来源身份、作品、来源哈希、清单哈希、索引版本和预处理指纹；文件位置、作品归属、清单、切块尺寸或预处理变化后，旧定位不能继续当作同一证据。旧版索引不会被静默兼容，必须重建。
 
-按草稿表层节奏寻找候选样本：
+按已有小说片段的表层节奏寻找候选样本：
 
-```powershell
-python .\scripts\corpus_index.py search .\work\corpus-index.jsonl --query-file .\draft.txt --top 4 --include-text
+```bash
+python scripts/corpus_index.py search work/corpus-index.jsonl --query-file supplied-passage.txt --top 4 --include-text
 ```
 
-按正文关键词或人物名寻找证据时重复使用 `--contains`。检索结果只是候选；还要人工核对视角、场景功能、情绪强度和章节位置。
+也可以组合 `--work-id`、`--scene-type`、`--viewpoint`、`--character`、`--relationship-state`、`--emotion`、`--chapter-position` 和 `--exclude-holdout` 做语义元数据检索；按正文关键词或人物名寻找证据时重复使用 `--contains`。这些字段来自清单标注，不是嵌入模型自动理解。检索结果只是候选，还要人工核对语义条件和原文机制。
 
 ## 对照作者
 
 用户同时提供目标作者和对照作者语料时，先按相近年代、题材、场景和篇幅分组，再运行：
 
-```powershell
-python .\scripts\compare_style.py contrast --target .\target --control .\control --output .\work\author-contrast.md
+```bash
+python scripts/compare_style.py contrast --target target --control control --target-manifest work/target-manifest.json --control-manifest work/control-manifest.json --output work/author-contrast.md
 ```
 
-报告比较句段、对白、标点和功能词在分块样本中的中位数与四分位范围。区分度只负责排列核查顺序。差异必须回到原文解释其场景条件、机制和效果，才能进入作者画像。
+报告先计算每部作品内部所有文本块的中位数，再让每部作品以相同权重进入作者级比较。这样同一作品拆成十个章节文件也不会自动获得十倍权重。若不提供清单，工具只能把每个来源文件临时当作一部作品；仅在“一文件一作品”确实成立时才可使用该回退。它比较句段、对白、标点和功能词的中位数与四分位范围；区分度只负责排列核查顺序。差异必须回到原文解释其场景条件、机制和效果，才能进入作者画像。
 
 ## 证据标准
 
@@ -131,9 +177,20 @@ python .\scripts\compare_style.py contrast --target .\target --control .\control
 
 无法回答最后一个问题的观察不进入写作规则，只保留在分析笔记中。
 
+每条主要发现同时记录：
+
+- `support_sample_count`：相互分离的支持样本数；
+- `support_work_count`：覆盖作品数；
+- `support_scene_type_count`：覆盖场景类型数；
+- `counterexample_count`：已检查到的反例数；
+- `holdout_status`：`passed`、`partial`、`failed`、`not_tested` 或 `not_applicable`；
+- `distinctiveness_status`：有用户提供的对照语料时为 `supported`、`shared` 或 `uncertain`，否则固定为 `not_tested`。
+
+可信度不只写高、中、低，还必须写理由：高可信度需要在所声称层级上具有广泛覆盖、分离证据一致，并且没有无法解释的留出失败；中可信度表示重复存在但覆盖较窄、条件较强或未做留出；低可信度表示证据稀少、噪音明显或反例冲突。
+
 ## 留出验证
 
-语料足够时，在归纳最终规则之前预留若干相互分离的章节或场景，不用它们建立画像。画像完成后再检查：
+语料至少包含 10 个可分离场景时，在归纳最终规则之前按作品和主要场景类型预留约 20%，且不少于 2 个场景，不用它们建立画像。场景不足时不强行留出，将 `holdout_status` 标为 `not_tested` 并降低相应结论的可信度。画像完成后再检查：
 
 1. 稳定规则是否能解释留出样本中的同类选择；
 2. 场景矩阵能否把留出样本分到正确模式；

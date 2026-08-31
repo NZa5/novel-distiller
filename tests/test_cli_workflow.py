@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import json
 import io
+import json
 import sys
 import tempfile
 import unittest
@@ -12,51 +12,79 @@ from pathlib import Path
 SCRIPTS = Path(__file__).parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-import blind_style_test  # noqa: E402
 import compare_style  # noqa: E402
 import corpus_index  # noqa: E402
 
 
 class CliWorkflowTests(unittest.TestCase):
-    def test_index_compare_and_blind_test_outputs(self) -> None:
+    def test_analysis_only_manifest_index_sample_resume_search_and_contrast(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             target = root / "target"
             control = root / "control"
-            generated = root / "generated"
-            for directory in (target, control, generated):
-                directory.mkdir()
-            (target / "target.txt").write_text(("他却没有回答。\n\n门慢慢关了。\n\n" * 80), encoding="utf-8")
-            (control / "control.txt").write_text(("“为什么？”她问！\n\n“我偏要去！”\n\n" * 80), encoding="utf-8")
-            (generated / "draft.txt").write_text(("他没有回答。\n\n门关了。\n\n" * 80), encoding="utf-8")
+            target.mkdir()
+            control.mkdir()
+            target_source = target / "chapter-01.txt"
+            control_source = control / "control.txt"
+            target_source.write_text(("他却没有回答。\n\n门慢慢关了。\n\n" * 80), encoding="utf-8")
+            control_source.write_text(("“为什么？”她问！\n\n“我偏要去！”\n\n" * 80), encoding="utf-8")
 
-            index_path = root / "work" / "corpus.jsonl"
-            matches_path = root / "work" / "matches.md"
-            contrast_path = root / "work" / "contrast.md"
-            draft_path = root / "work" / "draft.md"
+            work = root / "work"
+            target_manifest = work / "target-manifest.json"
+            control_manifest = work / "control-manifest.json"
+            index_path = work / "corpus-index.jsonl"
+            ledger_path = work / "sampling-ledger.json"
+            matches_path = work / "matches.md"
+            contrast_path = work / "contrast.md"
             with redirect_stdout(io.StringIO()):
-                self.assertEqual(corpus_index.main(["build", str(target), "--output", str(index_path), "--chunk-chars", "300"]), 0)
-                self.assertEqual(corpus_index.main(["search", str(index_path), "--query-file", str(generated / "draft.txt"), "--output", str(matches_path)]), 0)
-                self.assertEqual(compare_style.main(["contrast", "--target", str(target), "--control", str(control), "--chunk-chars", "300", "--output", str(contrast_path)]), 0)
-                self.assertEqual(compare_style.main(["draft", "--reference", str(target), "--draft", str(generated), "--chunk-chars", "300", "--output", str(draft_path)]), 0)
+                self.assertEqual(corpus_index.main(["manifest", str(target), "--output", str(target_manifest)]), 0)
+                self.assertEqual(corpus_index.main(["manifest", str(control), "--output", str(control_manifest)]), 0)
 
-            blind_dir = root / "blind"
-            with redirect_stdout(io.StringIO()):
-                self.assertEqual(blind_style_test.main(["prepare", "--original", str(target), "--generated", str(generated), "--output-dir", str(blind_dir), "--snippet-chars", "300", "--per-group", "1", "--seed", "11"]), 0)
-            key = json.loads((blind_dir / "blind-key.json").read_text(encoding="utf-8"))
-            response_lines = ["item_id,rater_id,label,confidence,notes"]
-            for item in key["items"]:
-                response_lines.append(f"{item['item_id']},reader,{item['label']},4,可说明的文本特征")
-            (blind_dir / "blind-responses.csv").write_text("\n".join(response_lines) + "\n", encoding="utf-8")
-            score_path = blind_dir / "score.md"
-            with redirect_stdout(io.StringIO()):
-                self.assertEqual(blind_style_test.main(["score", "--key", str(blind_dir / "blind-key.json"), "--responses", str(blind_dir / "blind-responses.csv"), "--output", str(score_path)]), 0)
+            manifest_data = json.loads(target_manifest.read_text(encoding="utf-8"))
+            manifest_data["sources"][0]["work_id"] = "W01"
+            manifest_data["sources"][0]["segments"] = [{
+                "paragraph_start": 1,
+                "paragraph_end": 160,
+                "scene_type": "confrontation",
+                "emotion": "tension",
+                "characters": ["甲", "乙"],
+            }]
+            target_manifest.write_text(json.dumps(manifest_data, ensure_ascii=False), encoding="utf-8")
 
-            self.assertTrue(index_path.is_file())
-            self.assertIn("语料证据检索", matches_path.read_text(encoding="utf-8"))
-            self.assertIn("目标作者与对照语料差异", contrast_path.read_text(encoding="utf-8"))
-            self.assertIn("草稿与匹配原文对照", draft_path.read_text(encoding="utf-8"))
-            self.assertIn("文风盲测结果", score_path.read_text(encoding="utf-8"))
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(corpus_index.main([
+                    "build", str(target), "--manifest", str(target_manifest),
+                    "--output", str(index_path), "--chunk-chars", "300",
+                ]), 0)
+                self.assertEqual(corpus_index.main([
+                    "sample", str(index_path), "--output", str(ledger_path),
+                    "--budget", "4", "--holdout-ratio", "0", "--seed", "11",
+                ]), 0)
+
+            ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+            chunk_id = next(item["chunk_id"] for item in ledger["items"] if item["role"] == "analysis")
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(corpus_index.main([
+                    "mark", str(ledger_path), "--index", str(index_path),
+                    "--chunk-id", chunk_id, "--status", "analyzed", "--note", "完成精读",
+                ]), 0)
+                self.assertEqual(corpus_index.main([
+                    "search", str(index_path), "--scene-type", "confrontation",
+                    "--emotion", "tension", "--exclude-holdout", "--output", str(matches_path),
+                ]), 0)
+                self.assertEqual(compare_style.main([
+                    "contrast", "--target", str(target), "--control", str(control),
+                    "--target-manifest", str(target_manifest), "--control-manifest", str(control_manifest),
+                    "--chunk-chars", "300", "--output", str(contrast_path),
+                ]), 0)
+
+            updated = json.loads(ledger_path.read_text(encoding="utf-8"))
+            marked = next(item for item in updated["items"] if item["chunk_id"] == chunk_id)
+            self.assertEqual(marked["status"], "analyzed")
+            self.assertIn("场景：confrontation", matches_path.read_text(encoding="utf-8"))
+            contrast_text = contrast_path.read_text(encoding="utf-8")
+            self.assertIn("目标作者与对照语料差异", contrast_text)
+            self.assertIn("目标作者作品：1", contrast_text)
 
 
 if __name__ == "__main__":

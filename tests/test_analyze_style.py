@@ -26,6 +26,11 @@ class AnalyzeStyleTests(unittest.TestCase):
         self.assertEqual(result["dialogue"]["content_chars"], 2)
         self.assertGreater(result["dialogue"]["content_ratio"], 0)
 
+    def test_single_newline_separates_normal_chinese_paragraphs(self) -> None:
+        result = STYLE.analyze_text("第一段。\n第二段。\n第三段。")
+
+        self.assertEqual(result["paragraphs"], 3)
+
     def test_markdown_metadata_is_not_counted(self) -> None:
         text = "---\ntitle: 示例\n---\n# 第一章\n\n正文在这里。"
         prepared = STYLE.prepare_text(text)
@@ -114,7 +119,22 @@ class AnalyzeStyleTests(unittest.TestCase):
         self.assertEqual(plain["paragraphs"], 8)
         self.assertEqual(reflowed["paragraphs"], 2)
         self.assertEqual(plain["content_chars"], reflowed["content_chars"])
+        self.assertTrue(plain["preprocessing"]["hard_wrap_detected"])
         self.assertTrue(reflowed["preprocessing"]["hard_wrap_reflow_applied"])
+
+    def test_unreflowed_hard_wrap_is_reported_as_warning(self) -> None:
+        text = (
+            "甲" * 36 + "\n\n" + "乙" * 36 + "\n\n" + "丙" * 36 + "\n\n" + "丁" * 12 + "。\n\n"
+            + "戊" * 36 + "\n\n" + "己" * 36 + "\n\n" + "庚" * 36 + "\n\n" + "辛" * 8 + "。"
+        )
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "wrapped.txt"
+            path.write_text(text, encoding="utf-8")
+            report = STYLE.build_report([path])
+
+        self.assertEqual(len(report["warnings"]), 1)
+        self.assertIn("--reflow-hard-wrap", report["warnings"][0])
+        self.assertIn("疑似硬换行未重排", STYLE.render_markdown(report))
 
     def test_normal_paragraphs_are_not_reflowed(self) -> None:
         paragraphs = ["段" * length + "。" for length in (9, 14, 21, 29, 38, 12, 25, 33)]

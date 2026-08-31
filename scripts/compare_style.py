@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Contrast author corpora and compare drafts with matched source passages."""
+"""Contrast target and control author corpora with work-level weighting."""
 
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from analyze_style import analyze_text, content_length, prepare_text, read_text, resolve_inputs
-from corpus_index import split_chunks
+from analyze_style import analyze_text, content_length, prepare_text, read_text, resolve_inputs, unique_labels
+from corpus_index import load_manifest, split_chunks
 
 
 FUNCTION_WORDS = (
@@ -41,6 +41,21 @@ METRIC_LABELS = {key: label for key, label, _ in METRICS}
 METRIC_FLOORS = {key: floor for key, _, floor in METRICS}
 
 
+def count_function_words(text: str) -> dict[str, int]:
+    """Count the configured strings greedily so longer items do not double-count."""
+    ordered = sorted(FUNCTION_WORDS, key=lambda word: (-len(word), word))
+    counts = {word: 0 for word in FUNCTION_WORDS}
+    index = 0
+    while index < len(text):
+        matched = next((word for word in ordered if text.startswith(word, index)), None)
+        if matched is None:
+            index += 1
+            continue
+        counts[matched] += 1
+        index += len(matched)
+    return counts
+
+
 def flatten_metrics(text: str) -> dict[str, float]:
     metrics = analyze_text(text)
     punctuation = metrics["punctuation"]
@@ -62,8 +77,9 @@ def flatten_metrics(text: str) -> dict[str, float]:
         "punct_ellipsis": punctuation["省略号"]["per_1000"],
         "punct_quote": punctuation["引号组"]["per_1000"],
     }
+    word_counts = count_function_words(text)
     for word in FUNCTION_WORDS:
-        result[f"word_{word}"] = round(text.count(word) * 1000 / size, 3)
+        result[f"word_{word}"] = round(word_counts[word] * 1000 / size, 3)
     return result
 
 
@@ -72,14 +88,21 @@ def collect_chunks(
     chunk_chars: int,
     reflow_hard_wrap: bool = False,
     strip_annotations: bool = False,
+    manifest: Path | None = None,
 ) -> list[dict]:
     samples: list[dict] = []
-    for path in paths:
+    manifest_sources = load_manifest(manifest)[0] if manifest is not None else {}
+    for path, source_label in zip(paths, unique_labels(paths)):
+        source_key = str(path.resolve()).casefold()
+        if manifest is not None and source_key not in manifest_sources:
+            raise ValueError(f"语料清单缺少来源：{path.resolve()}")
+        work_id = manifest_sources.get(source_key, {}).get("work_id", source_label)
         text, _ = read_text(path)
         prepared = prepare_text(text, reflow_hard_wrap, strip_annotations)
         for number, chunk in enumerate(split_chunks(prepared, chunk_chars), 1):
             samples.append({
-                "source": path.name,
+                "source": source_label,
+                "work_id": work_id,
                 "chunk": number,
                 "content_chars": content_length(chunk["text"]),
                 "values": flatten_metrics(chunk["text"]),
@@ -101,9 +124,21 @@ def percentile(values: Sequence[float], fraction: float) -> float:
 def summarize(samples: Sequence[dict]) -> dict[str, dict[str, float]]:
     if not samples:
         raise ValueError("没有可比较的文本块")
+    by_work: dict[str, list[dict]] = {}
+    for sample in samples:
+        work_id = str(sample.get("work_id") or sample["source"])
+        by_work.setdefault(work_id, []).append(sample)
+
+    work_values: list[dict[str, float]] = []
+    for work_samples in by_work.values():
+        work_values.append({
+            key: float(statistics.median(sample["values"][key] for sample in work_samples))
+            for key, _, _ in METRICS
+        })
+
     result: dict[str, dict[str, float]] = {}
     for key, _, _ in METRICS:
-        values = [sample["values"][key] for sample in samples]
+        values = [item[key] for item in work_values]
         result[key] = {
             "min": min(values),
             "q1": percentile(values, 0.25),
@@ -127,7 +162,12 @@ def contrast_report(target: Sequence[dict], control: Sequence[dict], top: int = 
         right = control_summary[key]
         scale = max((robust_scale(key, left) + robust_scale(key, right)) / 2, METRIC_FLOORS[key])
         score = abs(left["median"] - right["median"]) / scale
-        direction = "目标作者更高" if left["median"] > right["median"] else "目标作者更低"
+        if left["median"] > right["median"]:
+            direction = "目标作者更高"
+        elif left["median"] < right["median"]:
+            direction = "目标作者更低"
+        else:
+            direction = "中位数相同"
         differences.append({
             "key": key,
             "metric": label,
@@ -141,37 +181,11 @@ def contrast_report(target: Sequence[dict], control: Sequence[dict], top: int = 
         "mode": "contrast",
         "target_chunks": len(target),
         "control_chunks": len(control),
+        "target_sources": len({sample["source"] for sample in target}),
+        "control_sources": len({sample["source"] for sample in control}),
+        "target_works": len({sample.get("work_id", sample["source"]) for sample in target}),
+        "control_works": len({sample.get("work_id", sample["source"]) for sample in control}),
         "differences": differences[: max(top, 0)],
-    }
-
-
-def draft_report(reference: Sequence[dict], drafts: Sequence[dict], top: int = 15) -> dict:
-    reference_summary = summarize(reference)
-    draft_summary = summarize(drafts)
-    deviations = []
-    for key, label, _ in METRICS:
-        baseline = reference_summary[key]
-        value = draft_summary[key]["median"]
-        if baseline["q1"] <= value <= baseline["q3"]:
-            score = 0.0
-        else:
-            edge = baseline["q1"] if value < baseline["q1"] else baseline["q3"]
-            score = abs(value - edge) / robust_scale(key, baseline)
-        status = "close" if score <= 0.5 else "partial" if score <= 1.5 else "drift"
-        deviations.append({
-            "key": key,
-            "metric": label,
-            "reference": baseline,
-            "draft": draft_summary[key],
-            "status": status,
-            "deviation": round(score, 3),
-        })
-    deviations.sort(key=lambda item: (-item["deviation"], item["metric"]))
-    return {
-        "mode": "draft",
-        "reference_chunks": len(reference),
-        "draft_chunks": len(drafts),
-        "deviations": deviations[: max(top, 0)],
     }
 
 
@@ -186,48 +200,26 @@ def format_iqr(key: str, summary: dict[str, float]) -> str:
 
 
 def render_markdown(report: dict) -> str:
-    if report["mode"] == "contrast":
-        lines = [
-            "# 目标作者与对照语料差异",
-            "",
-            f"目标作者文本块：{report['target_chunks']}；对照文本块：{report['control_chunks']}。",
-            "",
-            "| 区分度 | 指标 | 目标作者中位数（IQR） | 对照中位数（IQR） | 方向 |",
-            "|---:|---|---:|---:|---|",
-        ]
-        for item in report["differences"]:
-            key = item["key"]
-            lines.append(
-                f"| {item['distinctiveness']:.2f} | {item['metric']} | "
-                f"{format_value(key, item['target']['median'])}（{format_iqr(key, item['target'])}） | "
-                f"{format_value(key, item['control']['median'])}（{format_iqr(key, item['control'])}） | "
-                f"{item['direction']} |"
-            )
-        lines.extend([
-            "",
-            "> 区分度用于排列回看顺序。只有能回到原文解释其场景条件和写作机制的差异，才能进入作者画像。",
-            "",
-        ])
-        return "\n".join(lines)
-
     lines = [
-        "# 草稿与匹配原文对照",
+        "# 目标作者与对照语料差异",
         "",
-        f"匹配原文文本块：{report['reference_chunks']}；草稿文本块：{report['draft_chunks']}。",
+        f"目标作者作品：{report['target_works']}，来源文件：{report['target_sources']}，文本块：{report['target_chunks']}；"
+        f"对照作品：{report['control_works']}，来源文件：{report['control_sources']}，文本块：{report['control_chunks']}。",
         "",
-        "| 状态 | 偏差 | 指标 | 草稿中位数 | 原文中位数（IQR） |",
-        "|---|---:|---|---:|---:|",
+        "| 区分度 | 指标 | 目标作者中位数（IQR） | 对照中位数（IQR） | 方向 |",
+        "|---:|---|---:|---:|---|",
     ]
-    for item in report["deviations"]:
+    for item in report["differences"]:
         key = item["key"]
         lines.append(
-            f"| {item['status']} | {item['deviation']:.2f} | {item['metric']} | "
-            f"{format_value(key, item['draft']['median'])} | "
-            f"{format_value(key, item['reference']['median'])}（{format_iqr(key, item['reference'])}） |"
+            f"| {item['distinctiveness']:.2f} | {item['metric']} | "
+            f"{format_value(key, item['target']['median'])}（{format_iqr(key, item['target'])}） | "
+            f"{format_value(key, item['control']['median'])}（{format_iqr(key, item['control'])}） | "
+            f"{item['direction']} |"
         )
     lines.extend([
         "",
-        "> 偏差不是相似度。先检查场景条件，再把能对应到具体文本机制的 drift/partial 用于定向修订。",
+        "> 每部作品先在作品内部汇总，再让作品等权参与作者层比较。区分度只用于排列原文回看顺序。",
         "",
     ])
     return "\n".join(lines)
@@ -243,32 +235,28 @@ def add_shared_options(parser: argparse.ArgumentParser) -> None:
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="比较作者语料差异或检查草稿表层漂移")
+    parser = argparse.ArgumentParser(description="按作品等权比较目标作者与对照作者语料")
     subparsers = parser.add_subparsers(dest="command", required=True)
     contrast = subparsers.add_parser("contrast", help="比较目标作者与对照作者")
     contrast.add_argument("--target", nargs="+", required=True)
     contrast.add_argument("--control", nargs="+", required=True)
+    contrast.add_argument("--target-manifest", type=Path)
+    contrast.add_argument("--control-manifest", type=Path)
     add_shared_options(contrast)
-    draft = subparsers.add_parser("draft", help="比较草稿与匹配原文")
-    draft.add_argument("--reference", nargs="+", required=True)
-    draft.add_argument("--draft", nargs="+", required=True)
-    add_shared_options(draft)
     return parser.parse_args(argv)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     try:
-        left_values = args.target if args.command == "contrast" else args.reference
-        right_values = args.control if args.command == "contrast" else args.draft
-        left_paths = resolve_inputs(left_values)
-        right_paths = resolve_inputs(right_values)
+        left_paths = resolve_inputs(args.target)
+        right_paths = resolve_inputs(args.control)
         if not left_paths or not right_paths:
             raise ValueError("两组都必须包含可读取的 .txt 或 .md 文件")
         options = (args.chunk_chars, args.reflow_hard_wrap, args.strip_annotations)
-        left = collect_chunks(left_paths, *options)
-        right = collect_chunks(right_paths, *options)
-        report = contrast_report(left, right, args.top) if args.command == "contrast" else draft_report(left, right, args.top)
+        left = collect_chunks(left_paths, *options, manifest=args.target_manifest)
+        right = collect_chunks(right_paths, *options, manifest=args.control_manifest)
+        report = contrast_report(left, right, args.top)
         rendered = render_markdown(report) if args.format == "markdown" else json.dumps(report, ensure_ascii=False, indent=2) + "\n"
         if args.output:
             args.output.parent.mkdir(parents=True, exist_ok=True)

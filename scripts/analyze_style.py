@@ -174,7 +174,8 @@ def non_whitespace_length(text: str) -> int:
 
 
 def split_paragraphs(text: str) -> list[str]:
-    blocks = re.split(r"\n\s*\n+", text)
+    """Treat each non-empty prepared line as a Chinese-fiction paragraph."""
+    blocks = re.split(r"\n+", text)
     return [re.sub(r"\s+", "", block) for block in blocks if block.strip()]
 
 
@@ -267,6 +268,8 @@ def analyze_text(
     return {
         "label": label,
         "preprocessing": {
+            "hard_wrap_detected": hard_wrap_detected,
+            "hard_wrap_reflow_requested": reflow_hard_wrap,
             "hard_wrap_reflow_applied": bool(reflow_hard_wrap and hard_wrap_detected),
             "annotations_stripped": bool(strip_annotations and annotation_heading_found),
         },
@@ -378,9 +381,16 @@ def build_report(
         raise ValueError("没有可分析的文本")
 
     aggregate = analyze_text("\n\n".join(texts), "全部语料")
+    warnings = [
+        f"{source['label']}：检测到疑似固定宽度硬换行；请检查原文，并在确认后使用 --reflow-hard-wrap 重新统计。"
+        for source in sources
+        if source["preprocessing"]["hard_wrap_detected"]
+        and not source["preprocessing"]["hard_wrap_reflow_applied"]
+    ]
     return {
         "measurement": {
             "character_unit": "非空白字符；句长和段长只计算字母、数字与汉字",
+            "paragraph": "预处理后的每个非空行视为一个段落；固定行宽电子书应先启用硬换行重排",
             "sentence_bands": "短句 <= 15；中句 16-39；长句 >= 40 个内容字符",
             "dialogue": "统计中文双引号、直角引号和书名式双引号中的内容字符",
             "punctuation": "每千非空白字符出现次数；连续破折号或省略号按一组计算",
@@ -390,6 +400,7 @@ def build_report(
         "aggregate": aggregate,
         "source_ranges": source_ranges(sources),
         "sources": sources,
+        "warnings": warnings,
         "errors": errors,
     }
 
@@ -425,6 +436,8 @@ def render_markdown(report: dict) -> str:
         preprocessing = []
         if source["preprocessing"]["hard_wrap_reflow_applied"]:
             preprocessing.append("硬换行重排")
+        elif source["preprocessing"]["hard_wrap_detected"]:
+            preprocessing.append("疑似硬换行未重排")
         if source["preprocessing"]["annotations_stripped"]:
             preprocessing.append("去篇末注释")
         preprocessing_text = "、".join(preprocessing) if preprocessing else "—"
@@ -448,6 +461,10 @@ def render_markdown(report: dict) -> str:
         value = aggregate["punctuation"][name]["per_1000"]
         range_value = punctuation_ranges[name]
         lines.append(f"| {name} | {value:.2f} | {range_value['min']:.2f}–{range_value['max']:.2f} |")
+
+    if report["warnings"]:
+        lines.extend(["", "## 警告", ""])
+        lines.extend(f"- {warning}" for warning in report["warnings"])
 
     if report["errors"]:
         lines.extend(["", "## 未读取文件", ""])

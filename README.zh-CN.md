@@ -3,9 +3,9 @@
 [English](README.md) | 简体中文
 
 <p align="center">
-  <strong>基于证据的中文小说作者风格分析与写作引擎。</strong>
+  <strong>基于证据的用户自备中文小说作者分析器。</strong>
   <br />
-  把用户提供的小说语料转化为可复用作者画像，再用于新小说写作、对照、回炉和盲测。
+  把用户提供的小说转化为可追溯、机器可读的作者画像，供独立的写作 AI 使用。
 </p>
 
 <p align="center">
@@ -15,179 +15,169 @@
   <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+" />
 </p>
 
-Novel Distiller 是一个分析用户所提供中文小说的 Agent Skill。它把作者的稳定规律与场景变化、角色语言和偶发现象分开，将主要结论连接到原文证据，再压缩成适合反复注入的写作包，让长篇生成能够持续遵循作者的叙事决策，而不是逐渐变成通用文风。
+Novel Distiller 只分析用户提供的中文小说正文和元数据。它把作者稳定规律与场景条件变化、角色语言、单部作品特征和不确定观察分开，并让每条主要规则都能回到短例证和可复现的原文定位。
+
+这个 skill 在分析结果交付后停止，不负责大纲、正文、续写、仿写、审稿或修改小说。
 
 ## 为什么使用 Novel Distiller
 
-有辨识度的文风不只是常用词和平均句长。Novel Distiller 分析的是文字背后的选择：
+有辨识度的文字不只是常用词和平均句长。Novel Distiller 检查的是文字背后的选择：
 
-- 叙述者站在哪里，知道多少，又选择透露什么；
-- 句子、段落、场景和章节怎样推进与收束；
-- 人物怎样被引入、获得能动性、发生变化，并在不同关系和压力下形成不同声音；
-- 事件怎样形成因果链，冲突怎样升级，时间与信息怎样被控制；
-- 空间、社会规则、母题、类型预期和读者知识怎样塑造故事；
-- 情绪怎样通过动作、沉默、感觉、判断或反讽传递；
-- 哪些规律属于作者，哪些来自时代、题材、场景或角色。
+- 叙述者姿态、视角、知识边界、评价方式和信息释放；
+- 句子运动、段落功能、用词、修辞、声音与中文特有语言现象；
+- 人物引入、能动性、情绪通道、关系权力和角色声音差异；
+- 事件选择、因果、冲突、情节推进、时间、转场和结尾；
+- 空间、社会系统、母题、主题、类型预期和读者知识；
+- 稳定规律、条件规律、可变选择、反例和证据缺口。
 
-最终结果不是一组空泛形容词，而是证据地图、场景模式、人物语音卡、表层数据范围、漂移纠正表和紧凑写作包。
+最终结果是一套可复用的分析接口，而不是一串空泛形容词。
 
-## 能做什么
+## 输出内容
 
-| 能力 | 结果 |
+| 文件 | 用途 |
 |---|---|
-| 作者风格蒸馏 | 带证据和可信度的片段、作品、阶段或作者级画像 |
-| 深层叙事分析 | 语言、叙事话语、人物、关系、事件、因果、情节、空间、主题、类型与读者契约 |
-| 条件风格建模 | 分开保存叙述、对白、行动、反思、开篇、结尾等真实语料模式 |
-| 长篇语料处理 | 带来源哈希、段落范围、字符范围、指标和原文的可检索文本块 |
-| 作者对照 | 排列目标作者与用户所提供对照作者之间的差异 |
-| 画像指导写作 | 场景简报、匹配样本、人物语音卡和逐场景重新注入 |
-| 草稿回炉 | 排列表层偏差，并细读叙述、结构、情绪和对白机制 |
-| 盲测验证 | 固定随机种子的匿名测试包、隐藏答案、答题记录和结果汇总 |
+| `author-analysis.md` | 完整的人类可读分析、覆盖矩阵、限制和未解决问题 |
+| `author-profile.json` | 规范的机器可读画像，包含规则、条件、可信度依据、场景模式、人物声音和优先级 |
+| `evidence-map.jsonl` | 每行一条可追溯证据，包含来源哈希、定位、短例证和证据角色 |
+| `writing-packet.md` | 供独立写作 AI 使用的精简提示包，不包含生成小说 |
+
+画像严格区分片段、作品、阶段和作者层级。作者级结论需要主人所提供多部作品中的分离证据。
+
+## 使用边界
+
+- 只分析用户提供的小说和元数据。
+- 不联网寻找或下载其他小说、评论、传记或对照语料。
+- 只有用户提供对照作者文本时，才执行作者对照分析。
+- 没有对照文本时，可以分析当前语料内部的重复规律，但跨作者区分度必须保持为 `not_tested`。
+- 表层统计只辅助精读，不能单独定义作者身份。
+- 详细画像能够改善后续写作，但不能保证所有读者都会相信文本由原作者本人写成。
 
 ## 30 秒开始
 
-### 使用 Agent Skills CLI 安装
+### 安装
+
+这是一个标准 Agent Skill，入口为 `SKILL.md`。把它复制或克隆到所用 Agent Skills 工具的 skills 目录：
 
 ```bash
-npx skills add NZa5/novel-distiller -g -a codex
+# Claude Code
+git clone https://github.com/NZa5/novel-distiller.git ~/.claude/skills/novel-distiller
+
+# Codex
+git clone https://github.com/NZa5/novel-distiller.git ~/.codex/skills/novel-distiller
 ```
 
-仓库只包含一个 Skill：`novel-distiller`。安装前可以先查看识别结果：
+也可以使用 Agent Skills CLI：
 
 ```bash
-npx skills add NZa5/novel-distiller --list
+npx skills add NZa5/novel-distiller -g
 ```
 
-### 手动安装到 Codex
-
-```powershell
-git clone https://github.com/NZa5/novel-distiller.git "$env:USERPROFILE\.codex\skills\novel-distiller"
-```
-
-安装后重新加载 Codex。
+安装后重新加载所用工具。
 
 ### 第一次使用
 
 ```text
-使用 $novel-distiller 分析这些中文小说文件，建立可直接指导新小说写作的作者画像。
-区分稳定规律、场景条件规律、角色语言、可变特征和不确定结论；每条主要规则附原文定位。
-```
-
-根据画像写作：
-
-```text
-使用 $novel-distiller 和作者画像，按照这份大纲写第一章。
-先匹配场景模式和人物声音，写完后做一次风格对照与定向回炉，最终只给我正文。
-```
-
-检查现有草稿：
-
-```text
-使用 $novel-distiller 对照作者画像和同类型原文，检查这篇草稿。
-修正最能暴露“换了一个作者”的三项偏差，同时保持所有剧情事实不变。
+使用 $novel-distiller，只分析我提供的中文小说。
+建立带证据的完整作者画像，区分稳定规律、条件规律、可变特征和不确定结论，并保存四个可复用分析文件。
 ```
 
 ## 工作流程
 
 ```text
-用户提供的语料
-    │
-    ├─ 清点与规范化
-    ├─ 按作品、场景、视角和角色分组
-    ├─ 统计表层特征
-    ├─ 为长篇建立索引并保留证据定位
-    ├─ 使用留出样本和对照作者检验稳定规则
-    ▼
-有证据的作者画像
-    │
-    ├─ Master Voice
-    ├─ 场景模式矩阵
-    ├─ 人物语音卡
-    ├─ 招牌动作与数据范围
-    └─ 紧凑写作包
-    ▼
-场景简报 → 草稿 → 匹配原文对照 → 定向回炉 → 盲测
+用户提供的小说
+        │
+        ├─ 语料清单与来源状态
+        ├─ 经核对的作品与场景元数据清单
+        ├─ 全量表层统计
+        ├─ 跨作品和场景类型的确定性取样账本
+        ├─ 带索引完整性核对的跨会话进度
+        ├─ 多轮语义精读
+        ├─ 证据卡、反例和计数
+        ├─ 语料足够时用留出样本挑战画像
+        └─ 对完整规则账本重新评估
+        ▼
+author-analysis.md + author-profile.json + evidence-map.jsonl + writing-packet.md
 ```
+
+处理长篇语料时，skill 会统计全部文件，均衡精读分层样本，再针对未覆盖区域和冲突进行补读。最长作品和最早处理的批次不能在没有说明的情况下支配最终画像。
 
 ## 准备语料
 
-使用 `.txt` 或 `.md` 文件。优先提供同一创作阶段的完整章节，并覆盖不同场景，不要只提供大量相邻且同质的段落。
+使用 `.txt` 或 `.md` 文件。同一创作阶段的完整章节最适合作为起点。优先覆盖不同场景、视角、角色和章节位置，不要只提供大量连续且同质的段落。
 
 ```text
 corpus/
 ├── target-author/
 │   ├── novel-a.txt
 │   └── novel-b.txt
-├── comparison-authors/       # 可选，由用户提供
-│   ├── author-b.txt
-│   └── author-c.txt
-└── holdout/                  # 不参与画像归纳
+├── comparison-authors/       # 可选，必须由用户提供
+│   └── author-b.txt
+└── holdout/                  # 可选，不参与规则归纳
     └── unseen-scenes.txt
 ```
 
-辅助脚本支持 UTF-8、带 BOM 的 UTF-16、GB18030 和 Big5，只使用 Python 标准库。
+一个片段只能支持片段画像，一部小说支持作品画像，多部作品才能支持作者画像。
+
+辅助脚本支持 UTF-8、带 BOM 的 UTF-16、GB18030 和 Big5，并且只使用 Python 标准库。
 
 ## 可复现工具
 
-Agent 负责语义分析；脚本负责让预处理、统计、检索、对照和评估可重复执行。
+Agent 负责语义分析；脚本让预处理、统计、证据索引、用户自备语料对照和结果校验可以重复执行。
 
 ### 1. 表层统计
 
-```powershell
-python .\scripts\analyze_style.py .\corpus\target-author --format markdown --output .\work\style-metrics.md
+```bash
+python scripts/analyze_style.py corpus/target-author --format markdown --output work/style-metrics.md
 ```
 
-固定宽度电子书排版使用 `--reflow-hard-wrap`；正文后存在独立“注释/注釋”章节时使用 `--strip-annotations`。
+预处理后的每个非空行视为一个普通中文小说段落。固定宽度电子书排版使用 `--reflow-hard-wrap`；正文后存在独立“注释/注釋”章节时使用 `--strip-annotations`。
 
-### 2. 长篇索引与证据检索
+如果工具检测到疑似固定宽度换行但没有执行重排，Markdown 与 JSON 报告都会明确警告，不再静默地把排版行当成真实段落。
 
-```powershell
-python .\scripts\corpus_index.py build .\corpus\target-author --output .\work\corpus-index.jsonl
-python .\scripts\corpus_index.py search .\work\corpus-index.jsonl --query-file .\draft.txt --top 4 --include-text
+### 2. 长篇语料索引
+
+```bash
+python scripts/corpus_index.py manifest corpus/target-author --output work/corpus-manifest.json
+# 核对 work_id，并在清单中补充有原文依据的场景、视角和角色元数据。
+python scripts/corpus_index.py build corpus/target-author --manifest work/corpus-manifest.json --output work/corpus-index.jsonl
+python scripts/corpus_index.py sample work/corpus-index.jsonl --output work/sampling-ledger.json --budget 40 --seed 20260831
+python scripts/corpus_index.py mark work/sampling-ledger.json --index work/corpus-index.jsonl --chunk-id CHUNK_ID --status analyzed
+python scripts/corpus_index.py search work/corpus-index.jsonl --scene-type confrontation --character 人物名 --exclude-holdout --top 4 --include-text
 ```
 
-每个索引块保存原文、来源文件、SHA-256、段落范围、内容字符范围和表层指标。
+清单骨架必须经过核对：同一部小说拆成多个文件时应使用相同 `work_id`，没有依据的元数据保持为空。schema v3 文本块除正文、来源 SHA-256、预处理指纹和定位外，还保存作品、时期、场景、视角、角色、关系、情绪、章节位置与留出标记。取样账本先按作品轮转，再确定性优先补齐欠覆盖的场景、视角、角色、关系、情绪和章节位置，并保存跨会话的待处理/已完成状态；它绑定精确索引哈希，索引变化后不能误用旧进度。
 
-### 3. 目标作者与对照作者
+### 3. 可选的用户自备作者对照
 
-```powershell
-python .\scripts\compare_style.py contrast --target .\corpus\target-author --control .\corpus\comparison-authors --output .\work\author-contrast.md
+```bash
+python scripts/compare_style.py contrast --target corpus/target-author --control corpus/comparison-authors --target-manifest work/target-manifest.json --control-manifest work/control-manifest.json --output work/author-contrast.md
 ```
 
-报告排列句段、对白、标点和功能词差异。这些结果用于确定回看顺序，不是风格相似度百分比。
+报告先在每部作品内部汇总文本块，再让作品等权参与作者级比较。同一小说即使拆成很多章节文件，也不会因此获得多倍影响。没有清单时，每个文件只能临时回退为一部作品，因此仅适用于确实“一文件一作品”的语料。排列出的差异只是精读候选，不是风格相似度百分比。
 
-### 4. 草稿自动对照
+### 4. 画像和证据校验
 
-```powershell
-python .\scripts\compare_style.py draft --reference .\matched-source --draft .\draft.txt --output .\work\draft-comparison.md
+```bash
+python scripts/validate_profile.py work/author-profile.json --evidence work/evidence-map.jsonl --index work/corpus-index.jsonl
 ```
 
-匹配原文时应尽量保持视角、场景功能、情绪压力、关系阶段和章节位置相近。
+校验器检查完整的场景模式、角色声音和写作包结构，受控值、计数与引用，覆盖和留出声明，并把每条证据定位与当前索引及原始小说核对。虚构路径、未知文本块、变化后的来源哈希、越界定位和原文中不存在的摘录都会失败。它仍不能证明语义解释本身正确。
 
-### 5. 盲测
-
-```powershell
-python .\scripts\blind_style_test.py prepare --original .\corpus\holdout --generated .\drafts --output-dir .\blind-test --seed 20260830
-python .\scripts\blind_style_test.py score --key .\blind-test\blind-key.json --responses .\blind-test\blind-responses.csv --output .\blind-test\blind-score.md
-```
-
-把 `blind-pack.md` 和答题表交给读者，同时隐藏 `blind-key.json`。结果报告会记录生成稿被当作原文的比例、真正原文能否被识别、整体辨识正确率、信心和文字理由。
-
-## 作者画像怎样工作
+## 画像契约
 
 每条主要规则记录：
 
-1. 适用范围和场景条件；
-2. 可观察现象；
-3. 写作机制与读者效果；
-4. 原文 chunk ID 和定位；
-5. 反例及其解释；
-6. 存在对照语料时的作者差异证据；
-7. 高、中或低可信度。
+1. 声称层级和分类；
+2. 触发条件、可观察现象、机制、效果、写作动作和限制；
+3. 原文证据 ID、短例证、哈希和定位；
+4. 支持样本数、作品数和场景类型数；
+5. 反例数量和留出验证结果；
+6. 跨作者区分度状态；
+7. 可信度和文字形式的可信度依据。
 
-所有结论保持为**稳定**、**条件**、**可变**或**不确定**。单个节选只能支持片段画像，一部小说支持作品画像，作者级结论需要跨作品的分离证据。
+结论保持为**稳定**、**条件**、**可变**或**不确定**。可信度使用**高**、**中**或**低**，但没有证据依据时，单独的标签无效。
 
-## 项目结构
+## 运行结构
 
 ```text
 novel-distiller/
@@ -196,28 +186,32 @@ novel-distiller/
 ├── references/
 │   ├── sampling-and-analysis.md
 │   ├── analysis-dimensions.md
-│   ├── author-profile.md
-│   ├── writing-engine.md
-│   └── style-review.md
+│   └── author-profile.md
 ├── scripts/
 │   ├── analyze_style.py
 │   ├── corpus_index.py
 │   ├── compare_style.py
-│   └── blind_style_test.py
+│   └── validate_profile.py
 └── tests/
 ```
 
-`SKILL.md` 是运行入口；五个 reference 文件分别保存取样、分析维度、作者画像、写作和回炉的详细流程。
+`SKILL.md` 是运行入口。三个当前使用的 reference 文件分别保存取样方法、24 维分析框架，以及人类/机器输出契约。
 
 ## 开发与测试
 
 运行完整测试：
 
-```powershell
-python -B -m unittest discover -s tests
+```bash
+python -X utf8 -B -m unittest discover -s tests
 ```
 
-测试覆盖中文编码、电子书清理、表层统计、切块定位、证据检索、作者对照、草稿偏差、盲测生成与评分，以及完整命令行工作流。
+Windows 上使用 UTF-8 模式运行官方 skill 校验器：
+
+```bash
+python -X utf8 -B path/to/quick_validate.py path/to/novel-distiller
+```
+
+测试覆盖中文编码、可见的硬换行警告、段落识别、表层指标、防碰撞文本块 ID、语义元数据检索、可复现且可恢复的取样、作品级等权、用户自备语料对照、与原始小说绑定的画像校验，以及仅分析的命令行流程。测试不能证明作者级语义还原已经达到目标。
 
 ## License
 

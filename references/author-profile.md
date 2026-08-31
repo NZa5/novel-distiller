@@ -1,6 +1,15 @@
 # 作者画像模板
 
-作者画像是分析与生成之间的正式接口。使用实际内容替换模板，不保留空标题；无稳定发现的维度写入分析笔记，不为了版式完整强行生成规则。
+作者画像是分析 skill 与后续写作 AI 之间的正式接口。分析 skill 只生成画像，不生成小说。使用实际内容替换模板；没有稳定规律的维度仍要在覆盖矩阵中标明“未发现稳定规律”“证据不足”或“不适用”，避免把“没有写”误当成“没有分析”。
+
+## 必须交付的四个文件
+
+1. `author-analysis.md`：完整的人类可读分析；
+2. `author-profile.json`：后续 AI 读取的规范画像；
+3. `evidence-map.jsonl`：每行一条可追溯证据；
+4. `writing-packet.md`：从规范画像压缩出的提示包，不包含新小说正文。
+
+四个文件必须使用相同的 `profile_id`、规则 ID、场景模式 ID 和角色语音卡 ID。完整报告负责解释，JSON 负责稳定传递，JSONL 负责证据回查，写作包负责低上下文调用。
 
 ## 1. 身份与范围
 
@@ -14,17 +23,38 @@
 - 对照语料与留出语料：
 - 当前可信度和适用边界：
 
+### 覆盖矩阵
+
+| 分析层 | 已处理作品/场景 | 主要视角或角色 | 状态 | 证据数量 | 未覆盖内容 |
+|---|---|---|---|---:|---|
+| 语言与句段 | | | analyzed / no_stable_finding / insufficient / not_applicable | | |
+| 叙事话语 | | | | | |
+| 人物与关系 | | | | | |
+| 事件、因果与情节 | | | | | |
+| 空间与世界 | | | | | |
+| 主题、类型与读者契约 | | | | | |
+
+覆盖矩阵证明某一层已经被检查，不要求每一层都制造稳定规律。
+
 ## 2. Master Voice
 
 用一段紧凑文字说明这个作者面对人物、世界和读者时的基本姿态。覆盖叙述距离、知识与评价边界、情绪温度、注意力落点、信息控制、道德或认识立场。这里描述底层决策，不堆“细腻、克制、电影感”等形容词。
 
 ## 3. 证据地图
 
-| rule_id | 层级与类型 | 可执行规则 | 适用条件 | 机制与效果 | 目标作者证据 | 对照与反例 | 可信度 |
+| rule_id | 层级与类型 | 可执行规则 | 适用条件 | 机制与效果 | 目标作者证据 | 计数与验证 | 可信度及理由 |
 |---|---|---|---|---|---|---|---|
-| R01 | 句段/场景/作品；稳定/条件/可变/不确定 | 触发条件与具体动作 | 场景、角色、视角、关系、压力 | 如何运作并影响读者 | chunk_id、来源哈希和范围 | 同类对照、反例及解释 | 高/中/低 |
+| R01 | 句段/场景/作品；稳定/条件/可变/不确定 | 触发条件、具体动作与节制 | 场景、角色、视角、关系、压力 | 如何运作并影响读者 | evidence_id、chunk_id、短例证 | 支持样本/作品/场景、反例、留出与区分度 | 高/中/低及依据 |
 
-每条规则必须能区分“可观察事实”“分析解释”“生成动作”。对照语料存在时，注明该规则是“目标作者显著偏好”“共有时代、题材或类型惯例”还是“证据仍不足”。共有惯例可以保留为背景，但不作为最有区分度的作者规则。
+每条规则必须能区分“可观察事实”“分析解释”“生成动作”。记录 `support_sample_count`、`support_work_count`、`support_scene_type_count`、`counterexample_count`、`holdout_status` 和 `distinctiveness_status`。没有用户提供的对照语料时，`distinctiveness_status` 必须是 `not_tested`，不能根据常识或外部印象声称作者独有。
+
+可信度口径：
+
+- **high**：在所声称层级上覆盖充分、分离证据一致，且没有无法解释的留出失败；
+- **medium**：规律重复出现，但只覆盖部分作品、场景或角色，条件较强，或者没有足够语料做留出；
+- **low**：样本稀少、文本噪音较大、存在冲突反例，或机制仍可能由偶然造成。
+
+可信度不能只给标签，必须写 `confidence_basis`。发现新的未解释反例时立即降级、拆分或删除规则。
 
 ## 4. 语言指纹
 
@@ -173,9 +203,20 @@
 |---|---|---|---|
 | 示例：连续解释人物感受 | 原作者主要让动作和停顿承担情绪 | 行为证据先于判断 | 删除解释句，补一个会改变关系或行动的反应 |
 
-这里只记录从作者样本与实际生成中观察到的偏差。每次用户确认“像”或“不像”后，更新相应规则及证据。
+这里只记录能够从作者样本证明的高风险漂移：如果后续写作 AI 违反哪些机制，会最明显地失去作者辨识度。不得根据未生成的正文虚构实际失败记录。
 
-## 15. 留出验证
+## 15. 规则优先级与冲突处理
+
+后续 AI 遇到规则冲突时按以下顺序选择：
+
+1. 当前场景、视角、角色和关系明确命中的条件规则；
+2. 有广泛证据的稳定规则；
+3. 对应场景的表层数据范围；
+4. 中低可信度观察。
+
+在画像中列出 `rule_precedence`。如果两条规则只在特定条件下冲突，记录分流条件，不要简单删除其中一条。
+
+## 16. 留出验证
 
 - 未参与画像归纳的样本：
 - 画像成功预测的稳定规律：
@@ -185,7 +226,7 @@
 - 因验证而降级、拆分或删除的规则：
 - 画像当前适用边界：
 
-## 16. 写作包
+## 17. 写作包
 
 压缩成每个场景都能重新注入的短包：
 
@@ -199,3 +240,87 @@
 8. 本场景适用的表层数据范围和负向约束。
 
 写作包应足够短，能反复使用；完整画像保留证据、条件和反例，负责在需要时回查。
+
+## 机器可读画像
+
+`author-profile.json` 至少包含以下顶层字段：
+
+- `schema_version`：当前为 `1.0`；
+- `profile_id`：本次画像的稳定编号；
+- `profile_scope`：`passage`、`work`、`period` 或 `author`；
+- `corpus`：`supplied_only=true`、目标标签、`work_ids`、`sample_ids`、`source_hashes`、是否提供对照语料、留出样本 ID 和预处理参数；
+- `coverage`：所有分析层的检查状态；
+- `master_voice`：底层叙述姿态；
+- `rules`：规范规则数组；
+- `scene_modes`：条件场景模式；
+- `character_voices`：角色语音和行为卡；
+- `rule_precedence`：冲突处理顺序；
+- `surface_ranges`：实际统计范围和分组；
+- `writing_packet`：后续 AI 的紧凑控制项；
+- `limitations`：未覆盖和不确定内容。
+
+每条 `rules` 记录至少包含：
+
+```json
+{
+  "rule_id": "R01",
+  "level": "author",
+  "classification": "conditional",
+  "category": "narrative_distance",
+  "trigger": "对峙场景且视角人物信息受限",
+  "observable": "先写可见动作和空间位置，延后直接心理判断",
+  "mechanism": "用观察顺序维持知识边界",
+  "effect": "让压力先于解释抵达读者",
+  "action": "按动作、感知、判断的顺序展开",
+  "limits": "内心独白场景不适用",
+  "evidence_ids": ["E0001", "E0002"],
+  "support_sample_count": 2,
+  "support_work_count": 2,
+  "support_scene_type_count": 1,
+  "counterexample_count": 1,
+  "holdout_status": "passed",
+  "distinctiveness_status": "not_tested",
+  "confidence": "medium",
+  "confidence_basis": "跨两部作品重复，但目前只覆盖对峙场景"
+}
+```
+
+示例只规定结构，不是默认分析结论。所有文字和数字都必须由当前语料产生。
+
+`scene_modes` 中每项必须包含 `mode_id`、`name`、非空 `triggers`、`rule_ids` 和 `evidence_ids`。`character_voices` 中每项必须包含 `voice_id`、`character_label`、非空 `conditions`、`rule_ids` 和 `evidence_ids`。所有引用都必须指向当前画像中存在的规则或证据。
+
+`writing_packet` 是机器可读画像内部的压缩控制项，至少包含：
+
+```json
+{
+  "master_voice": "与顶层 master_voice 完全一致",
+  "active_rule_ids": ["R01"],
+  "scene_mode_ids": ["M01"],
+  "character_voice_ids": ["V01"],
+  "rule_precedence": ["R01"],
+  "drift_corrections": ["先核对场景条件，再修正偏离的叙事机制"]
+}
+```
+
+其中 `rule_precedence` 必须与顶层同名字段完全一致。数组可以为空，但其中每个编号都必须存在；`master_voice` 不得在压缩时改写成另一套结论。
+
+## 证据 JSONL
+
+`evidence-map.jsonl` 每行是一个完整 JSON 对象，至少包含：
+
+- `schema_version`、`profile_id`、`evidence_id`、`rule_id`、`dimension`；
+- `sample_id`、`source_path`、`source_sha256`、`chunk_id`；
+- `work_id`、`scene_type`：用于核对跨作品和跨场景计数；
+- `paragraph_start`、`paragraph_end`、`content_char_start`、`content_char_end`；
+- `evidence_role`：`support`、`counterexample` 或 `holdout`；
+- `excerpt`：足以说明机制的短例证；
+- `observation`：例证实际做了什么；
+- `eligibility`：为什么这个样本可以支持或挑战该规则。
+
+完成后运行：
+
+```bash
+python scripts/validate_profile.py work/author-profile.json --evidence work/evidence-map.jsonl --index work/corpus-index.jsonl
+```
+
+只有必填字段、受控值、完整子结构、计数、ID 与交叉引用、覆盖维度、留出状态、索引块编号、作品归属、来源路径、来源 SHA-256、定位范围和短摘录全部通过，才算交付完成。校验器还会重新读取原始来源并核对哈希，所以原文或索引变化后旧画像不能继续冒充当前可追溯结果。校验器不证明分析解释正确；留出检查和人工复核仍然负责语义质量。
