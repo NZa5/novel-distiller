@@ -2,7 +2,7 @@
 name: novel-distiller
 description: Analyze Chinese novels supplied by the user, distill the author's recurring style into an evidence-backed profile, and use it to plan, draft, compare, revise, and blind-test new fiction. Use for 作者分析、文风或作者DNA提炼、仿写、画像写作、风格漂移检查和长篇语料处理.
 metadata:
-  version: "5.0.0"
+  version: "5.1.0"
 ---
 
 # Novel Distiller
@@ -25,7 +25,7 @@ Combine modes when the user asks for an end-to-end result.
 2. Read [references/sampling-and-analysis.md](references/sampling-and-analysis.md). For a long corpus, build `corpus_index.py` before close analysis so every evidence passage has a stable chunk ID, source hash, paragraph range, and character range. Divide the corpus into comparable sample groups such as narration, dialogue, action, reflection, description, opening, and chapter ending.
 3. Run `python scripts/analyze_style.py <paths> --format markdown` for surface measurements. The reader handles UTF-8, UTF-16 with BOM, GB18030, and Big5. Add `--reflow-hard-wrap` for fixed-width eBook lines and `--strip-annotations` for an independent 注释/注釋 section. Treat measurements as supporting evidence, not the author profile itself.
 4. If the user supplied comparison-author samples, run `compare_style.py contrast`. Treat its ranked differences as candidates, then keep only differences that survive scene matching and can be explained from the text. This prevents a period or genre convention from being mislabeled as target-author DNA.
-5. Analyze each group for sentence movement, paragraph logic, diction, narrative distance, information release, sensory selection, emotion delivery, dialogue, character construction, scene progression, transitions, and chapter rhythm.
+5. Read [references/analysis-dimensions.md](references/analysis-dimensions.md). Analyze in ordered passes: first map scenes, characters, events, viewpoint, time, and revelation; then examine language and narrative discourse; then examine character, relationship, causality, plot, setting, theme, genre, and reader-contract choices. Separate local observations from cross-sample author claims. Mark a dimension not applicable or insufficiently evidenced instead of forcing a conclusion.
 6. Classify every meaningful finding:
    - **stable:** recurs across separated, eligible samples and survives changes of scene or character;
    - **conditional:** changes predictably with viewpoint, character, scene type, tension, or stage of the story;
@@ -74,11 +74,14 @@ After each batch, merge new evidence into existing rules instead of replacing th
 ## Completion check
 
 - Corpus scope and profile scope are explicit.
+- Applicable layers of language, narrative discourse, character and relationship construction, events and causality, plot, setting, time, revelation, theme, and genre were examined.
+- Local passage observations remain separate from work-, period-, and author-level claims.
 - Stable, conditional, variable, and uncertain traits remain distinct.
 - Major rules have separated evidence and a counterexample check.
 - Available holdout samples were used to challenge, not merely confirm, the profile.
 - User-supplied comparison authors were used to test which traits actually distinguish the target author.
 - Quantitative claims come from an actual run and name the measured corpus.
+- Negative or avoidance rules come from target-corpus evidence rather than a generic list of undesirable writing habits.
 - Long-corpus claims resolve to indexed passages with stable locators.
 - The writing brief selects the correct scene and character modes.
 - Revision targets the largest observable deviations while preserving plot facts.

@@ -23,7 +23,9 @@ Recognizable style is more than favorite words or average sentence length. Novel
 
 - where the narrator stands and what the narrator chooses to reveal;
 - how sentences, paragraphs, scenes, and chapters move;
-- how characters speak differently under different relationships and pressure;
+- how characters are introduced, gain agency, change, and speak differently under different relationships and pressure;
+- how events form causal chains, conflicts escalate, and time and revelations are controlled;
+- how setting, social systems, motifs, genre expectations, and reader knowledge shape the story;
 - how emotion is carried through action, silence, sensation, judgment, or irony;
 - how stable habits differ from genre, period, scene, and character effects.
 
@@ -34,6 +36,7 @@ The result is not a bag of adjectives. It is an evidence map, a scene-mode syste
 | Capability | Result |
 |---|---|
 | Author distillation | Passage-, work-, period-, or author-level profile with evidence and confidence |
+| Deep narrative analysis | Language, discourse, character, relationship, event, causality, plot, setting, theme, genre, and reader-contract analysis |
 | Conditional style modeling | Separate rules for narration, dialogue, action, reflection, openings, endings, and other real corpus modes |
 | Long-corpus processing | Reproducible chunks with source hashes, paragraph ranges, character ranges, metrics, and searchable text |
 | Author contrast | Ranked differences between the target author and user-supplied comparison authors |
@@ -192,6 +195,7 @@ novel-distiller/
 ├── agents/openai.yaml
 ├── references/
 │   ├── sampling-and-analysis.md
+│   ├── analysis-dimensions.md
 │   ├── author-profile.md
 │   ├── writing-engine.md
 │   └── style-review.md
@@ -203,7 +207,7 @@ novel-distiller/
 └── tests/
 ```
 
-`SKILL.md` is the runtime entry point. The reference files contain the detailed analysis, profile, writing, and review procedures.
+`SKILL.md` is the runtime entry point. The reference files contain the detailed sampling, analysis-dimension, profile, writing, and review procedures.
 
 ## Development
 
