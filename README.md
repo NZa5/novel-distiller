@@ -56,28 +56,18 @@ The profile distinguishes passage-, work-, period-, and author-level claims. Aut
 
 ### Install
 
-This is a standard Agent Skill with `SKILL.md` as its entry point. Copy or clone it into the skills directory used by your Agent Skills-compatible tool:
+This repository follows the portable Agent Skills folder format with `SKILL.md` as its entry point. Clone or copy the complete directory into the skills location configured by any Agent Skills-compatible host:
 
 ```bash
-# Claude Code
-git clone https://github.com/NZa5/novel-distiller.git ~/.claude/skills/novel-distiller
-
-# Codex
-git clone https://github.com/NZa5/novel-distiller.git ~/.codex/skills/novel-distiller
+git clone https://github.com/NZa5/novel-distiller.git /path/to/skills/novel-distiller
 ```
 
-Or use the Agent Skills CLI:
-
-```bash
-npx skills add NZa5/novel-distiller -g
-```
-
-Reload the tool after installation.
+Keep `SKILL.md`, `scripts/`, and `references/` together. Reload or rescan skills according to the host's normal procedure.
 
 ### First request
 
 ```text
-Use $novel-distiller to analyze only the Chinese novels I provide.
+Use the novel-distiller skill to analyze only the Chinese novels I provide.
 Build a complete evidence-backed author profile, distinguish stable and conditional patterns from variable or uncertain findings, and save the four reusable analysis artifacts.
 ```
 
@@ -105,6 +95,8 @@ For long corpora, the skill measures all supplied files, close-reads a balanced 
 
 Use `.txt` or `.md` files. Complete chapters from the same creative period are the strongest starting point. Include different scene types, viewpoints, characters, and chapter positions rather than only adjacent passages.
 
+If fiction is pasted directly into a conversation, the skill first saves it verbatim as UTF-8 under `work/corpus/`. This gives pasted text the same hashes, chunk IDs, and evidence locators as uploaded files.
+
 ```text
 corpus/
 ├── target-author/
@@ -130,9 +122,9 @@ The Agent performs semantic analysis. The scripts make preprocessing, measuremen
 python scripts/analyze_style.py corpus/target-author --format markdown --output work/style-metrics.md
 ```
 
-Each non-empty prepared line is treated as a normal Chinese-fiction paragraph. Add `--reflow-hard-wrap` for fixed-width eBook line wrapping and `--strip-annotations` for a separate trailing 注释/注釋 section.
+Each non-empty prepared line is treated as a normal Chinese-fiction paragraph. Paired ASCII straight double quotes on one line are recognized as dialogue alongside Chinese quote styles. Add `--reflow-hard-wrap` for fixed-width eBook line wrapping and `--strip-annotations` for a separate trailing 注释/注釋 section.
 
-If suspected fixed-width wrapping is detected without reflow, the Markdown and JSON reports surface a warning instead of silently treating layout lines as real paragraphs.
+If suspected fixed-width wrapping or unpaired, reversed, or cross-line quote pairs are detected in any supported Chinese or ASCII quote style, the Markdown and JSON reports surface a warning instead of silently trusting distorted paragraph or dialogue metrics. Quote matching is line-bounded so one missing closing quote cannot consume later paragraphs.
 
 ### 2. Long-corpus index
 
@@ -140,12 +132,14 @@ If suspected fixed-width wrapping is detected without reflow, the Markdown and J
 python scripts/corpus_index.py manifest corpus/target-author --output work/corpus-manifest.json
 # Review work_id and add supported scene/viewpoint/character metadata in the manifest.
 python scripts/corpus_index.py build corpus/target-author --manifest work/corpus-manifest.json --output work/corpus-index.jsonl
-python scripts/corpus_index.py sample work/corpus-index.jsonl --output work/sampling-ledger.json --budget 40 --seed 20260831
+python scripts/corpus_index.py sample work/corpus-index.jsonl --output work/sampling-ledger.json --budget <B> --seed 20260831
 python scripts/corpus_index.py mark work/sampling-ledger.json --index work/corpus-index.jsonl --chunk-id CHUNK_ID --status analyzed
 python scripts/corpus_index.py search work/corpus-index.jsonl --scene-type confrontation --character 人物名 --exclude-holdout --top 4 --include-text
 ```
 
 The manifest skeleton must be reviewed: files from the same novel need the same `work_id`, and unsupported metadata stays empty. Schema-v3 chunks store work, period, scene, viewpoint, character, relationship, emotion, chapter-position and holdout metadata alongside text, source SHA-256, preprocessing fingerprint and locators. The ledger rotates across works, then deterministically prioritizes under-covered scene, viewpoint, character, relationship, emotion, and chapter-position values. It keeps pending/completed state across sessions and is bound to the exact index hash, so stale progress cannot be applied after an index change.
+
+`--budget` counts close-read analysis chunks, not all indexed chunks or holdouts. Let `A` be available non-holdout chunks and `N` the number of works: use `B=A` when `A<=24`; otherwise default to `B=min(A, max(24, min(80, 6*N)))`, unless the user sets another limit.
 
 ### 3. Optional supplied-author contrast
 
@@ -182,7 +176,6 @@ Findings remain **stable**, **conditional**, **variable**, or **uncertain**. Con
 ```text
 novel-distiller/
 ├── SKILL.md
-├── agents/openai.yaml
 ├── references/
 │   ├── sampling-and-analysis.md
 │   ├── analysis-dimensions.md
@@ -205,13 +198,9 @@ Run the complete test suite:
 python -X utf8 -B -m unittest discover -s tests
 ```
 
-Run the official skill validator in UTF-8 mode on Windows:
+When the host provides an Agent Skills format validator, run it against the repository root in addition to the tests.
 
-```bash
-python -X utf8 -B path/to/quick_validate.py path/to/novel-distiller
-```
-
-The tests cover Chinese encodings, visible hard-wrap warnings, paragraph handling, metrics, collision-resistant chunk IDs, semantic metadata retrieval, deterministic/resumable sampling, work-level weighting, supplied-corpus contrast, source-backed profile validation, and the analysis-only command-line workflow. They do not prove author-level semantic fidelity.
+The tests cover Chinese encodings, paired and unpaired ASCII/Chinese dialogue quotes, visible input warnings, paragraph handling, metrics, collision-resistant chunk IDs, semantic metadata retrieval, deterministic/resumable sampling, work-level weighting, supplied-corpus contrast, source-backed profile validation, and the analysis-only command-line workflow. They do not prove author-level semantic fidelity.
 
 ## License
 

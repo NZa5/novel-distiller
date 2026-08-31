@@ -16,8 +16,16 @@ from typing import Iterable, Sequence
 
 
 VALID_SUFFIXES = {".txt", ".md"}
-SENTENCE_SPLIT_RE = re.compile(r"(?:[。！？!?]+|…{2,})(?:[”’」』】》）])?")
-DIALOGUE_RE = re.compile(r"“([^”]*)”|‘([^’]*)’|「([^」]*)」|『([^』]*)』")
+SENTENCE_SPLIT_RE = re.compile(r'(?:[。！？!?]+|…{2,})(?:[”’」』】》）"])?')
+QUOTE_PAIR_SPECS = (
+    ("中文弯双引号", "“", "”", re.compile(r"“([^”\r\n]*)”")),
+    ("中文弯单引号", "‘", "’", re.compile(r"‘([^’\r\n]*)’")),
+    ("中文直角引号", "「", "」", re.compile(r"「([^」\r\n]*)」")),
+    ("中文双直角引号", "『", "』", re.compile(r"『([^』\r\n]*)』")),
+    ("ASCII 直双引号", '"', '"', re.compile(r'"([^"\r\n]*)"')),
+)
+DIALOGUE_RE = re.compile("|".join(pattern.pattern for _, _, _, pattern in QUOTE_PAIR_SPECS))
+ASCII_DIALOGUE_RE = QUOTE_PAIR_SPECS[-1][3]
 MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+")
 ANNOTATION_HEADING_RE = re.compile(r"^\s*(?:□\s*)?注[釋释]\s*$")
 PUNCTUATION_PATTERNS = {
@@ -30,7 +38,7 @@ PUNCTUATION_PATTERNS = {
     "顿号、": re.compile("、"),
     "破折号": re.compile(r"—{2,}|-{2,}"),
     "省略号": re.compile(r"…{2,}|\.{3,}"),
-    "引号组": re.compile(r"[“「『]"),
+    "引号组": re.compile(r"[“‘「『]"),
 }
 
 
@@ -250,10 +258,22 @@ def analyze_text(
     for match in DIALOGUE_RE.finditer(prepared):
         dialogue_spans += 1
         dialogue_chars += content_length(next(group for group in match.groups() if group is not None))
+    quote_pair_warnings = []
+    for quote_label, opening, closing, pattern in QUOTE_PAIR_SPECS:
+        matched_spans = len(pattern.findall(prepared))
+        if opening == closing:
+            anomalous = prepared.count(opening) != matched_spans * 2
+        else:
+            anomalous = prepared.count(opening) != matched_spans or prepared.count(closing) != matched_spans
+        if anomalous:
+            quote_pair_warnings.append(quote_label)
+    ascii_quote_chars = prepared.count('"')
+    ascii_dialogue_spans = len(ASCII_DIALOGUE_RE.findall(prepared))
+    ascii_quote_warning = "ASCII 直双引号" in quote_pair_warnings
 
     punctuation = {}
     for name, pattern in PUNCTUATION_PATTERNS.items():
-        count = len(pattern.findall(prepared))
+        count = dialogue_spans if name == "引号组" else len(pattern.findall(prepared))
         per_thousand = (count * 1000 / non_whitespace_chars) if non_whitespace_chars else 0.0
         punctuation[name] = {"count": count, "per_1000": round(per_thousand, 2)}
 
@@ -272,6 +292,10 @@ def analyze_text(
             "hard_wrap_reflow_requested": reflow_hard_wrap,
             "hard_wrap_reflow_applied": bool(reflow_hard_wrap and hard_wrap_detected),
             "annotations_stripped": bool(strip_annotations and annotation_heading_found),
+            "ascii_quote_chars": ascii_quote_chars,
+            "ascii_dialogue_spans": ascii_dialogue_spans,
+            "ascii_quote_warning": ascii_quote_warning,
+            "quote_pair_warnings": quote_pair_warnings,
         },
         "non_whitespace_chars": non_whitespace_chars,
         "content_chars": content_chars,
@@ -381,18 +405,24 @@ def build_report(
         raise ValueError("没有可分析的文本")
 
     aggregate = analyze_text("\n\n".join(texts), "全部语料")
-    warnings = [
-        f"{source['label']}：检测到疑似固定宽度硬换行；请检查原文，并在确认后使用 --reflow-hard-wrap 重新统计。"
-        for source in sources
-        if source["preprocessing"]["hard_wrap_detected"]
-        and not source["preprocessing"]["hard_wrap_reflow_applied"]
-    ]
+    warnings = []
+    for source in sources:
+        preprocessing = source["preprocessing"]
+        if preprocessing["hard_wrap_detected"] and not preprocessing["hard_wrap_reflow_applied"]:
+            warnings.append(
+                f"{source['label']}：检测到疑似固定宽度硬换行；请检查原文，并在确认后使用 --reflow-hard-wrap 重新统计。"
+            )
+        if preprocessing["quote_pair_warnings"]:
+            warnings.append(
+                f"{source['label']}：检测到未成对、顺序异常或跨行的引号（{'、'.join(preprocessing['quote_pair_warnings'])}）；"
+                "部分对白可能无法可靠识别，请核对引号配对和换行。"
+            )
     return {
         "measurement": {
             "character_unit": "非空白字符；句长和段长只计算字母、数字与汉字",
             "paragraph": "预处理后的每个非空行视为一个段落；固定行宽电子书应先启用硬换行重排",
             "sentence_bands": "短句 <= 15；中句 16-39；长句 >= 40 个内容字符",
-            "dialogue": "统计中文双引号、直角引号和书名式双引号中的内容字符",
+            "dialogue": "统计成对的中文弯引号、直角引号以及同一行内成对的 ASCII 直双引号中的内容字符",
             "punctuation": "每千非空白字符出现次数；连续破折号或省略号按一组计算",
             "hard_wrap_reflow": "已请求；只对检测到固定行宽特征的文件近似恢复段落" if reflow_hard_wrap else "未启用电子书硬换行重排",
             "annotations": "已在篇末注释标题处停止统计" if strip_annotations else "保留原文件全部内容",
@@ -438,6 +468,8 @@ def render_markdown(report: dict) -> str:
             preprocessing.append("硬换行重排")
         elif source["preprocessing"]["hard_wrap_detected"]:
             preprocessing.append("疑似硬换行未重排")
+        if source["preprocessing"]["quote_pair_warnings"]:
+            preprocessing.append("引号待核对")
         if source["preprocessing"]["annotations_stripped"]:
             preprocessing.append("去篇末注释")
         preprocessing_text = "、".join(preprocessing) if preprocessing else "—"

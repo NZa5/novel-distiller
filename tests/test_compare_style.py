@@ -44,6 +44,13 @@ class CompareStyleTests(unittest.TestCase):
         self.assertEqual(counts["然而"], 1)
         self.assertEqual(counts["而"], 1)
 
+    def test_ascii_and_curly_quotes_produce_the_same_dialogue_metrics(self) -> None:
+        ascii_values = COMPARE.flatten_metrics('他说："去吗？"她说："不去！"')
+        curly_values = COMPARE.flatten_metrics("他说：“去吗？”她说：“不去！”")
+
+        self.assertEqual(ascii_values["dialogue_ratio"], curly_values["dialogue_ratio"])
+        self.assertEqual(ascii_values["punct_quote"], curly_values["punct_quote"])
+
     def test_each_work_has_equal_weight_even_when_split_across_files(self) -> None:
         samples = [
             metric_sample("chapter-1.txt", "long-work", 0.0),

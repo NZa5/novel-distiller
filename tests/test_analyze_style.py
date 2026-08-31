@@ -26,6 +26,45 @@ class AnalyzeStyleTests(unittest.TestCase):
         self.assertEqual(result["dialogue"]["content_chars"], 2)
         self.assertGreater(result["dialogue"]["content_ratio"], 0)
 
+    def test_ascii_double_quotes_are_counted_as_dialogue(self) -> None:
+        result = STYLE.analyze_text('他说："别去！"她回答："不去。"')
+
+        self.assertEqual(result["dialogue"]["spans"], 2)
+        self.assertEqual(result["dialogue"]["content_chars"], 4)
+        self.assertEqual(result["punctuation"]["引号组"]["count"], 2)
+        self.assertFalse(result["preprocessing"]["ascii_quote_warning"])
+
+    def test_unpaired_ascii_quote_is_reported_as_warning(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "straight-quotes.txt"
+            path.write_text('他说："别去！\n\n她回答："不去。', encoding="utf-8")
+            report = STYLE.build_report([path])
+
+        self.assertEqual(report["sources"][0]["dialogue"]["content_ratio"], 0)
+        self.assertTrue(report["sources"][0]["preprocessing"]["ascii_quote_warning"])
+        self.assertTrue(any("ASCII 直双引号" in warning for warning in report["warnings"]))
+        self.assertIn("引号待核对", STYLE.render_markdown(report))
+
+    def test_unpaired_chinese_quote_does_not_swallow_the_next_paragraph(self) -> None:
+        text = "他说：“第一句没有闭合。\n\n她说：“第二句。”"
+        result = STYLE.analyze_text(text)
+
+        self.assertEqual(result["dialogue"]["spans"], 1)
+        self.assertEqual(result["dialogue"]["content_chars"], 3)
+        self.assertIn("中文弯双引号", result["preprocessing"]["quote_pair_warnings"])
+
+    def test_all_supported_chinese_quote_styles_warn_when_unpaired(self) -> None:
+        cases = (
+            ("“没有闭合。", "中文弯双引号"),
+            ("‘没有闭合。", "中文弯单引号"),
+            ("「没有闭合。", "中文直角引号"),
+            ("『没有闭合。", "中文双直角引号"),
+        )
+        for text, label in cases:
+            with self.subTest(label=label):
+                result = STYLE.analyze_text(text)
+                self.assertIn(label, result["preprocessing"]["quote_pair_warnings"])
+
     def test_single_newline_separates_normal_chinese_paragraphs(self) -> None:
         result = STYLE.analyze_text("第一段。\n第二段。\n第三段。")
 

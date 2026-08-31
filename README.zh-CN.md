@@ -56,28 +56,18 @@ Novel Distiller 只分析用户提供的中文小说正文和元数据。它把�
 
 ### 安装
 
-这是一个标准 Agent Skill，入口为 `SKILL.md`。把它复制或克隆到所用 Agent Skills 工具的 skills 目录：
+本仓库采用可移植的 Agent Skills 文件夹格式，入口为 `SKILL.md`。将完整目录克隆或复制到任意兼容 Agent Skills 的宿主所配置的 skills 位置：
 
 ```bash
-# Claude Code
-git clone https://github.com/NZa5/novel-distiller.git ~/.claude/skills/novel-distiller
-
-# Codex
-git clone https://github.com/NZa5/novel-distiller.git ~/.codex/skills/novel-distiller
+git clone https://github.com/NZa5/novel-distiller.git /path/to/skills/novel-distiller
 ```
 
-也可以使用 Agent Skills CLI：
-
-```bash
-npx skills add NZa5/novel-distiller -g
-```
-
-安装后重新加载所用工具。
+保持 `SKILL.md`、`scripts/` 和 `references/` 位于同一目录，并按宿主的正常方式重新加载或扫描 skills。
 
 ### 第一次使用
 
 ```text
-使用 $novel-distiller，只分析我提供的中文小说。
+使用 novel-distiller skill，只分析我提供的中文小说。
 建立带证据的完整作者画像，区分稳定规律、条件规律、可变特征和不确定结论，并保存四个可复用分析文件。
 ```
 
@@ -105,6 +95,8 @@ author-analysis.md + author-profile.json + evidence-map.jsonl + writing-packet.m
 
 使用 `.txt` 或 `.md` 文件。同一创作阶段的完整章节最适合作为起点。优先覆盖不同场景、视角、角色和章节位置，不要只提供大量连续且同质的段落。
 
+如果小说直接粘贴在对话中，skill 会先按原样保存为 `work/corpus/` 下的 UTF-8 文件，使粘贴文本与上传文件一样具有来源哈希、文本块 ID 和证据定位。
+
 ```text
 corpus/
 ├── target-author/
@@ -130,9 +122,9 @@ Agent 负责语义分析；脚本让预处理、统计、证据索引、用户�
 python scripts/analyze_style.py corpus/target-author --format markdown --output work/style-metrics.md
 ```
 
-预处理后的每个非空行视为一个普通中文小说段落。固定宽度电子书排版使用 `--reflow-hard-wrap`；正文后存在独立“注释/注釋”章节时使用 `--strip-annotations`。
+预处理后的每个非空行视为一个普通中文小说段落。同一行内成对的 ASCII 直双引号会和中文引号一样识别为对白。固定宽度电子书排版使用 `--reflow-hard-wrap`；正文后存在独立“注释/注釋”章节时使用 `--strip-annotations`。
 
-如果工具检测到疑似固定宽度换行但没有执行重排，Markdown 与 JSON 报告都会明确警告，不再静默地把排版行当成真实段落。
+如果工具检测到疑似固定宽度换行，或任一受支持的中文/ASCII 引号存在未成对、顺序异常或跨行配对，Markdown 与 JSON 报告都会明确警告，不再静默信任失真的段落或对白指标。引号匹配限制在同一行，缺少一个闭引号不会再吞掉后续段落。
 
 ### 2. 长篇语料索引
 
@@ -140,12 +132,14 @@ python scripts/analyze_style.py corpus/target-author --format markdown --output 
 python scripts/corpus_index.py manifest corpus/target-author --output work/corpus-manifest.json
 # 核对 work_id，并在清单中补充有原文依据的场景、视角和角色元数据。
 python scripts/corpus_index.py build corpus/target-author --manifest work/corpus-manifest.json --output work/corpus-index.jsonl
-python scripts/corpus_index.py sample work/corpus-index.jsonl --output work/sampling-ledger.json --budget 40 --seed 20260831
+python scripts/corpus_index.py sample work/corpus-index.jsonl --output work/sampling-ledger.json --budget <B> --seed 20260831
 python scripts/corpus_index.py mark work/sampling-ledger.json --index work/corpus-index.jsonl --chunk-id CHUNK_ID --status analyzed
 python scripts/corpus_index.py search work/corpus-index.jsonl --scene-type confrontation --character 人物名 --exclude-holdout --top 4 --include-text
 ```
 
 清单骨架必须经过核对：同一部小说拆成多个文件时应使用相同 `work_id`，没有依据的元数据保持为空。schema v3 文本块除正文、来源 SHA-256、预处理指纹和定位外，还保存作品、时期、场景、视角、角色、关系、情绪、章节位置与留出标记。取样账本先按作品轮转，再确定性优先补齐欠覆盖的场景、视角、角色、关系、情绪和章节位置，并保存跨会话的待处理/已完成状态；它绑定精确索引哈希，索引变化后不能误用旧进度。
+
+`--budget` 表示需要精读的分析文本块数量，不是全部索引块数，也不包含留出块。令 `A` 为可用非留出块数、`N` 为作品数：`A<=24` 时使用 `B=A`；否则默认 `B=min(A, max(24, min(80, 6*N)))`，除非用户另设限制。
 
 ### 3. 可选的用户自备作者对照
 
@@ -182,7 +176,6 @@ python scripts/validate_profile.py work/author-profile.json --evidence work/evid
 ```text
 novel-distiller/
 ├── SKILL.md
-├── agents/openai.yaml
 ├── references/
 │   ├── sampling-and-analysis.md
 │   ├── analysis-dimensions.md
@@ -205,13 +198,9 @@ novel-distiller/
 python -X utf8 -B -m unittest discover -s tests
 ```
 
-Windows 上使用 UTF-8 模式运行官方 skill 校验器：
+宿主提供 Agent Skills 格式校验器时，除测试外，再用它校验仓库根目录。
 
-```bash
-python -X utf8 -B path/to/quick_validate.py path/to/novel-distiller
-```
-
-测试覆盖中文编码、可见的硬换行警告、段落识别、表层指标、防碰撞文本块 ID、语义元数据检索、可复现且可恢复的取样、作品级等权、用户自备语料对照、与原始小说绑定的画像校验，以及仅分析的命令行流程。测试不能证明作者级语义还原已经达到目标。
+测试覆盖中文编码、成对与未成对的 ASCII/中文对白引号、可见的输入警告、段落识别、表层指标、防碰撞文本块 ID、语义元数据检索、可复现且可恢复的取样、作品级等权、用户自备语料对照、与原始小说绑定的画像校验，以及仅分析的命令行流程。测试不能证明作者级语义还原已经达到目标。
 
 ## License
 

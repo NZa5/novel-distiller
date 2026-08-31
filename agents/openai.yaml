@@ -1,4 +1,0 @@
-interface:
-  display_name: "Novel Distiller 作者分析器"
-  short_description: "分析用户提供的中文小说并生成可复用作者画像"
-  default_prompt: "使用 $novel-distiller 只分析我提供的中文小说，生成带证据的完整作者画像和机器可读写作包。"
