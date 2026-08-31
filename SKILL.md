@@ -2,7 +2,7 @@
 name: novel-distiller
 description: Use when the user supplies Chinese fiction and requests evidence-backed passage, work, period, author, or style analysis for later reuse, including 作者分析、文风分析、作者DNA提炼、作者画像、小说语料分析; do not use for drafting, imitation, continuation, review, or revision.
 metadata:
-  version: "7.1.0"
+  version: "7.1.1"
 ---
 
 # Novel Distiller
