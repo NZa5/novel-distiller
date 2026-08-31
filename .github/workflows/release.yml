@@ -61,5 +61,4 @@ jobs:
             --verify-tag \
             --latest \
             --title "Novel Distiller Skill ${version}" \
-            --generate-notes \
-            --notes "Portable Agent Skill package. Download the ZIP and matching SHA-256 file below."
+            --notes "Portable Agent Skill package built from ${GITHUB_REF_NAME}. Download the ZIP and matching SHA-256 file below; the archive contains SKILL.md, references, scripts, bilingual documentation, and the license."
