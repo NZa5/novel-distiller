@@ -17,7 +17,7 @@ import corpus_index  # noqa: E402
 
 
 class CliWorkflowTests(unittest.TestCase):
-    def test_analysis_only_manifest_index_sample_resume_search_and_contrast(self) -> None:
+    def test_manifest_index_sample_resume_search_and_contrast(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             target = root / "target"

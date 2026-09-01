@@ -16,9 +16,7 @@ English | [简体中文](README.zh-CN.md)
   <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+" />
 </p>
 
-Novel Distiller analyzes only the Chinese novel text and metadata supplied by the user. It separates stable author choices from scene-conditioned variation, character voice, work-specific traits, and uncertain observations. Every major rule points back to short source evidence and reproducible locators.
-
-The skill stops after analysis. It does not outline, draft, continue, imitate, review, or revise fiction.
+Novel Distiller turns user-supplied Chinese novel text and metadata into a detailed author profile. It separates stable author choices from scene-conditioned variation, character voice, work-specific traits, and uncertain observations. Every major rule points back to short source evidence and reproducible locators.
 
 ## Why Novel Distiller
 
@@ -42,18 +40,9 @@ The result is a reusable analysis interface rather than a list of vague adjectiv
 | `author-analysis.md` | Complete human-readable analysis, coverage matrix, limitations, and unresolved questions |
 | `author-profile.json` | Canonical machine-readable profile with rules, conditions, confidence basis, scene modes, voices, and precedence |
 | `evidence-map.jsonl` | One traceable evidence record per line with source hash, locator, short excerpt, and evidence role |
-| `writing-packet.md` | Compact prompt-ready extraction for a separate writing AI; it contains no generated fiction |
+| `writing-packet.md` | Compact prompt-ready extraction for a separate writing AI |
 
 The profile distinguishes passage-, work-, period-, and author-level claims. Author-level claims require separated evidence across multiple supplied works.
-
-## Boundaries
-
-- Only user-supplied fiction and metadata are analyzed.
-- The skill does not search for or download outside novels, reviews, biographies, or comparison corpora.
-- Comparison-author analysis runs only when the user supplies the comparison text.
-- Without comparison text, recurrence inside the supplied corpus can be analyzed, but cross-author distinctiveness remains `not_tested`.
-- Surface statistics support close reading; they do not define the author's identity by themselves.
-- A detailed profile can improve later writing, but it cannot guarantee that every reader will believe the result was written by the original author.
 
 ## Quick Start
 
@@ -74,7 +63,7 @@ Keep `SKILL.md`, `scripts/`, and `references/` together. Reload or rescan skills
 ### First request
 
 ```text
-Use the novel-distiller skill to analyze only the Chinese novels I provide.
+Use the novel-distiller skill to analyze these Chinese novels.
 Build a complete evidence-backed author profile, distinguish stable and conditional patterns from variable or uncertain findings, and save the four reusable analysis artifacts.
 ```
 
@@ -207,7 +196,7 @@ python -X utf8 -B -m unittest discover -s tests
 
 When the host provides an Agent Skills format validator, run it against the repository root in addition to the tests.
 
-The tests cover Chinese encodings, paired and unpaired ASCII/Chinese dialogue quotes, visible input warnings, paragraph handling, metrics, collision-resistant chunk IDs, semantic metadata retrieval, deterministic/resumable sampling, work-level weighting, supplied-corpus contrast, source-backed profile validation, and the analysis-only command-line workflow. They do not prove author-level semantic fidelity.
+The tests cover Chinese encodings, paired and unpaired ASCII/Chinese dialogue quotes, visible input warnings, paragraph handling, metrics, collision-resistant chunk IDs, semantic metadata retrieval, deterministic/resumable sampling, work-level weighting, supplied-corpus contrast, source-backed profile validation, and the end-to-end command-line workflow.
 
 ## License
 
