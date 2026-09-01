@@ -148,6 +148,161 @@ class CorpusIndexTests(unittest.TestCase):
         self.assertEqual(marked["status"], "analyzed")
         self.assertEqual(marked["notes"], ["完成精读"])
 
+    def test_scene_groups_are_atomic_across_analysis_and_holdout(self) -> None:
+        records = []
+        for scene_number in range(1, 11):
+            chunk_count = 2 if scene_number == 1 else 1
+            for chunk_number in range(1, chunk_count + 1):
+                records.append({
+                    "chunk_id": f"W01-S{scene_number:02d}-{chunk_number}",
+                    "source": "W01.txt",
+                    "work_id": "W01",
+                    "scene_ids": [f"S{scene_number:02d}"],
+                    "scene_types": ["dialogue" if scene_number % 2 else "action"],
+                    "viewpoints": ["close-third"],
+                    "characters": ["甲"],
+                    "relationship_states": ["strained"],
+                    "emotions": ["tension"],
+                    "chapter_positions": ["middle"],
+                    "paragraph_start": scene_number,
+                    "paragraph_end": scene_number,
+                })
+
+        ledger = INDEX.build_sampling_ledger(records, "b" * 64, budget=4, holdout_ratio=0.2, seed=9)
+        roles_by_scene: dict[str, set[str]] = {}
+        for item in ledger["items"]:
+            for scene_id in item["scene_ids"]:
+                roles_by_scene.setdefault(scene_id, set()).add(item["role"])
+
+        self.assertEqual(ledger["schema_version"], "1.1")
+        self.assertTrue(all(len(roles) == 1 for roles in roles_by_scene.values()))
+        self.assertFalse(
+            set(ledger["analysis_coverage"]["scene_group_ids"])
+            & set(ledger["holdout_coverage"]["scene_group_ids"])
+        )
+
+    def test_manual_holdout_expands_to_the_whole_scene_group(self) -> None:
+        shared = [{
+            "chunk_id": f"shared-{number}",
+            "source": "W01.txt",
+            "work_id": "W01",
+            "scene_ids": ["S01"],
+            "scene_types": ["dialogue"],
+            "viewpoints": [],
+            "characters": [],
+            "relationship_states": [],
+            "emotions": [],
+            "chapter_positions": [],
+            "holdout": number == 1,
+            "paragraph_start": number,
+            "paragraph_end": number,
+        } for number in (1, 2)]
+        other = {
+            **shared[0],
+            "chunk_id": "other-1",
+            "scene_ids": ["S02"],
+            "holdout": False,
+            "paragraph_start": 3,
+            "paragraph_end": 3,
+        }
+
+        ledger = INDEX.build_sampling_ledger(shared + [other], "c" * 64, budget=1, holdout_ratio=0, seed=3)
+        held_ids = {item["chunk_id"] for item in ledger["items"] if item["role"] == "holdout"}
+
+        self.assertEqual(held_ids, {"shared-1", "shared-2"})
+
+    def test_ledger_reader_rejects_scene_group_role_leakage(self) -> None:
+        records = [{
+            "chunk_id": f"shared-{number}",
+            "source": "W01.txt",
+            "work_id": "W01",
+            "scene_ids": ["S01"],
+            "scene_types": ["dialogue"],
+            "viewpoints": [],
+            "characters": [],
+            "relationship_states": [],
+            "emotions": [],
+            "chapter_positions": [],
+            "holdout": number == 1,
+            "paragraph_start": number,
+            "paragraph_end": number,
+        } for number in (1, 2)]
+        records.append({
+            **records[0],
+            "chunk_id": "other-1",
+            "scene_ids": ["S02"],
+            "holdout": False,
+            "paragraph_start": 3,
+            "paragraph_end": 3,
+        })
+        ledger = INDEX.build_sampling_ledger(records, "e" * 64, budget=1, holdout_ratio=0, seed=3)
+        leaked = next(item for item in ledger["items"] if item["chunk_id"] == "shared-2")
+        leaked["role"] = "analysis"
+        leaked["status"] = "pending"
+
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "ledger.json"
+            path.write_text(json.dumps(ledger, ensure_ascii=False), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "同一场景组不能同时进入分析和留出"):
+                INDEX.read_ledger(path)
+
+    def test_ledger_reader_rejects_inconsistent_status_and_budget_metadata(self) -> None:
+        records = [{
+            "chunk_id": "only-1",
+            "source": "W01.txt",
+            "work_id": "W01",
+            "scene_ids": ["S01"],
+            "scene_types": ["dialogue"],
+            "viewpoints": [],
+            "characters": [],
+            "relationship_states": [],
+            "emotions": [],
+            "chapter_positions": [],
+            "paragraph_start": 1,
+            "paragraph_end": 1,
+        }]
+        ledger = INDEX.build_sampling_ledger(records, "f" * 64, holdout_ratio=0, seed=3)
+
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "ledger.json"
+            ledger["items"][0]["status"] = "holdout"
+            path.write_text(json.dumps(ledger, ensure_ascii=False), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "分析角色不能使用 holdout 状态"):
+                INDEX.read_ledger(path)
+
+            ledger["items"][0]["status"] = "pending"
+            ledger["budget_overshoot_chunks"] = 1
+            path.write_text(json.dumps(ledger, ensure_ascii=False), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "budget_overshoot_chunks 与实际分析块数不一致"):
+                INDEX.read_ledger(path)
+
+    def test_automatic_budget_scales_with_work_count(self) -> None:
+        records = []
+        for work_number in range(1, 21):
+            for scene_number in range(1, 11):
+                records.append({
+                    "chunk_id": f"W{work_number:02d}-S{scene_number:02d}",
+                    "source": f"W{work_number:02d}.txt",
+                    "work_id": f"W{work_number:02d}",
+                    "scene_ids": [f"S{scene_number:02d}"],
+                    "scene_types": ["scene"],
+                    "viewpoints": ["viewpoint"],
+                    "characters": ["character"],
+                    "relationship_states": ["relationship"],
+                    "emotions": ["emotion"],
+                    "chapter_positions": ["middle"],
+                    "paragraph_start": scene_number,
+                    "paragraph_end": scene_number,
+                })
+
+        ledger = INDEX.build_sampling_ledger(records, "d" * 64, budget=None, holdout_ratio=0, seed=5)
+
+        self.assertEqual(ledger["budget_mode"], "auto")
+        self.assertIsNone(ledger["budget_requested"])
+        self.assertEqual(ledger["budget_effective"], 120)
+        self.assertEqual(ledger["budget_recommended"], 120)
+        self.assertEqual(len(ledger["items"]), 120)
+
     def test_resume_rejects_changed_index(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

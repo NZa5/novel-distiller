@@ -2,7 +2,7 @@
 name: novel-distiller
 description: Use when the user supplies Chinese fiction and requests evidence-backed passage, work, period, author, or style analysis for later reuse, including 作者分析、文风分析、作者DNA提炼、作者画像、小说语料分析; do not use for drafting, imitation, continuation, review, or revision.
 metadata:
-  version: "7.1.1"
+  version: "7.2.0"
 ---
 
 # Novel Distiller
@@ -36,10 +36,10 @@ Separate translations, collaborators, major editorial versions, and distinct pen
 3. For long corpora, create an index-bound reading plan:
 
    ```text
-   python scripts/corpus_index.py sample work/corpus-index.jsonl --output work/sampling-ledger.json --budget <B>
+   python scripts/corpus_index.py sample work/corpus-index.jsonl --output work/sampling-ledger.json
    ```
 
-   Let `A` be available non-holdout chunks and `N` the number of works. Unless the user sets a limit, use `B=A` when `A<=24`; otherwise use `B=min(A, max(24, min(80, 6*N)))`. `B` is the number of analysis chunks to close-read, not total indexed chunks and not holdouts. Preserve the ledger across sessions and mark progress with `corpus_index.py mark ... --index work/corpus-index.jsonl`; never reuse it after the index hash changes.
+   Omit `--budget` to derive a corpus-adaptive target from available chunks, works, scene groups, and annotated semantic strata; use `--budget <B>` only when the user sets a limit. Chunks sharing a reviewed `scene_id` are atomic for both analysis and holdout, so the actual chunk count may exceed a manual target; the ledger records the overshoot. Treat `partial` or `unavailable` scene grouping as a validation limitation. Preserve the ledger across sessions and mark progress with `corpus_index.py mark ... --index work/corpus-index.jsonl`; never reuse it after the index hash changes.
 4. Measure the complete supplied corpus:
 
    ```text
@@ -48,8 +48,8 @@ Separate translations, collaborators, major editorial versions, and distinct pen
 
    Resolve reported hard-wrap or quote-pair warnings before trusting paragraph or dialogue metrics. Use measurements to target close reading, not as author identity by themselves.
 5. Only when the user supplies comparison fiction, run `compare_style.py contrast` with reviewed manifests for both corpora. Otherwise keep cross-author distinctiveness `not_tested`.
-6. Read [analysis-dimensions.md](references/analysis-dimensions.md). Analyze objective scene/discourse facts first, then language, narration, character, relationship, causality, plot, setting, theme, genre, and reader contract. Compare eligible scenes rather than averaging unlike modes.
-7. For every meaningful finding, separate observation, interpretation, reader effect, later writing action, eligibility, counterexamples, and evidence. Classify it as `stable`, `conditional`, `variable`, or `uncertain`. Keep holdouts sealed until the provisional profile is complete; downgrade, split, or delete rules that fail unexplained holdouts.
+6. Read [analysis-dimensions.md](references/analysis-dimensions.md). Analyze objective scene/discourse facts first, then all 35 registered dimensions: language, narration, character, relationship, causality, plot, setting, theme, genre, topic/reference, modality, conversation pragmatics, humor, macro rhythm, viewpoint transitions, relationship evolution, foreshadowing, motif trajectories, period drift, and negative constraints. Compare eligible scenes rather than averaging unlike modes.
+7. Declare a coverage status for every registered dimension. For every meaningful finding, separate observation, interpretation, reader effect, later writing action, eligibility, counterexamples, and evidence. Classify it as `stable`, `conditional`, `variable`, or `uncertain`. Keep whole-scene holdouts sealed until the provisional profile is complete; downgrade, split, or delete rules that fail unexplained holdouts.
 8. Read [author-profile.md](references/author-profile.md), produce the artifacts below, then run:
 
    ```text
@@ -69,4 +69,4 @@ Save under `work/` unless the user chooses another destination:
 
 For reusable profiles also preserve `corpus-manifest.json` and `corpus-index.jsonl`; for long corpora preserve `sampling-ledger.json` as well. A user may explicitly request a smaller inline result.
 
-Every major rule must state its level, trigger, observable mechanism, effect, action, limits, evidence IDs, support counts by sample/work/scene, counterexample count, holdout result, distinctiveness status, confidence, and confidence basis. Do not invent counts or uniqueness. Before completion, ensure all planned ledger entries are analyzed, explicitly skipped, or marked for follow-up; all references, hashes, locators, and excerpts resolve; unsupported areas remain explicit; and no fiction was generated or revised.
+Every major rule must state its registered dimension ID, level, trigger, observable mechanism, effect, action, limits, evidence IDs, support counts by sample/work/scene, counterexample count, holdout result, distinctiveness status, confidence, and confidence basis. Do not invent counts or uniqueness. Before completion, ensure all 35 coverage entries exist; all planned ledger entries are analyzed, explicitly skipped, or marked for follow-up; all references, hashes, locators, and excerpts resolve; unsupported areas remain explicit; and no fiction was generated or revised.

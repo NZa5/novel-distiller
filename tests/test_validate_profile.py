@@ -24,8 +24,9 @@ INDEX_SPEC.loader.exec_module(INDEX)
 
 
 def valid_profile(records: list[dict]) -> dict:
+    target_dimension = "narrator_evaluative_stance"
     return {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "profile_id": "profile-test",
         "profile_scope": "author",
         "corpus": {
@@ -39,14 +40,15 @@ def valid_profile(records: list[dict]) -> dict:
             "preprocessing": {"reflow_hard_wrap": False, "strip_annotations": False},
         },
         "coverage": [{
-            "dimension": "narrative_discourse",
-            "status": "analyzed",
-            "evidence_count": 3,
+            "dimension": dimension,
+            "status": "analyzed" if dimension == target_dimension else "no_stable_finding",
+            "evidence_count": 3 if dimension == target_dimension else 0,
             "uncovered": [],
-        }],
+        } for dimension in VALIDATE.ANALYSIS_DIMENSIONS],
         "master_voice": "叙述保持有限知识边界。",
         "rules": [{
             "rule_id": "R01",
+            "dimension": target_dimension,
             "level": "author",
             "classification": "conditional",
             "category": "narrative_distance",
@@ -84,6 +86,7 @@ def valid_profile(records: list[dict]) -> dict:
         "surface_ranges": {},
         "writing_packet": {
             "master_voice": "叙述保持有限知识边界。",
+            "active_dimension_ids": [target_dimension],
             "active_rule_ids": ["R01"],
             "scene_mode_ids": ["M01"],
             "character_voice_ids": ["V01"],
@@ -121,11 +124,11 @@ def build_artifacts(root: Path) -> tuple[dict, list[dict], list[dict]]:
     def evidence_record(evidence_id: str, sample_id: str, work_id: str, role: str, excerpt: str) -> dict:
         record = by_work[work_id]
         return {
-            "schema_version": "1.0",
+            "schema_version": "1.1",
             "profile_id": "profile-test",
             "evidence_id": evidence_id,
             "rule_id": "R01",
-            "dimension": "narrative_discourse",
+            "dimension": "narrator_evaluative_stance",
             "sample_id": sample_id,
             "work_id": work_id,
             "scene_type": "confrontation",
@@ -183,10 +186,37 @@ class ValidateProfileTests(unittest.TestCase):
             profile, evidence, records = build_artifacts(Path(folder))
             profile["scene_modes"][0]["rule_ids"] = ["R404"]
             profile["writing_packet"]["character_voice_ids"] = ["V404"]
+            profile["writing_packet"]["active_dimension_ids"] = ["invented_dimension"]
             errors = VALIDATE.validate_profile(profile, evidence, records)
 
         self.assertTrue(any("scene_modes[1].rule_ids" in error for error in errors))
         self.assertTrue(any("writing_packet.character_voice_ids" in error for error in errors))
+        self.assertTrue(any("writing_packet.active_dimension_ids" in error for error in errors))
+
+    def test_all_canonical_dimensions_are_required_and_controlled(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            profile, evidence, records = build_artifacts(Path(folder))
+            profile["coverage"].pop()
+            profile["coverage"][0]["dimension"] = "invented_dimension"
+            errors = VALIDATE.validate_profile(profile, evidence, records)
+
+        self.assertTrue(any("coverage 缺少固定分析维度" in error for error in errors))
+        self.assertTrue(any("invented_dimension" in error for error in errors))
+
+    def test_coverage_status_and_rule_evidence_dimension_are_enforced(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            profile, evidence, records = build_artifacts(Path(folder))
+            profile["coverage"][1]["status"] = "analyzed"
+            profile["coverage"][2]["status"] = "insufficient"
+            profile["coverage"][3]["status"] = "not_applicable"
+            profile["coverage"][3]["evidence_count"] = 1
+            evidence[0]["dimension"] = "syntax_rhythm"
+            errors = VALIDATE.validate_profile(profile, evidence, records)
+
+        self.assertTrue(any("analyzed 时 evidence_count 必须大于 0" in error for error in errors))
+        self.assertTrue(any("insufficient 时必须说明 uncovered" in error for error in errors))
+        self.assertTrue(any("not_applicable 时 evidence_count 必须为 0" in error for error in errors))
+        self.assertTrue(any("dimension 与规则 R01 不一致" in error for error in errors))
 
     def test_malformed_controlled_values_report_errors_instead_of_crashing(self) -> None:
         with tempfile.TemporaryDirectory() as folder:

@@ -25,7 +25,7 @@ from analyze_style import (
 
 SCHEMA_VERSION = 3
 MANIFEST_SCHEMA_VERSION = "1.0"
-LEDGER_SCHEMA_VERSION = "1.0"
+LEDGER_SCHEMA_VERSION = "1.1"
 SEMANTIC_FIELDS = {
     "scene_ids": "scene_id",
     "scene_types": "scene_type",
@@ -37,6 +37,7 @@ SEMANTIC_FIELDS = {
 }
 LEDGER_STATUSES = {"pending", "analyzed", "skipped", "needs_followup", "holdout"}
 SAMPLING_FIELDS = (
+    "scene_ids",
     "scene_types",
     "viewpoints",
     "characters",
@@ -508,6 +509,124 @@ def balanced_select(records: Sequence[dict], count: int, seed: int) -> list[dict
     return selected
 
 
+def group_records_by_scene(records: Sequence[dict]) -> list[list[dict]]:
+    """Keep chunks sharing a scene ID in the same atomic sampling group."""
+    items = list(records)
+    parents = list(range(len(items)))
+
+    def find(index: int) -> int:
+        while parents[index] != index:
+            parents[index] = parents[parents[index]]
+            index = parents[index]
+        return index
+
+    def union(left: int, right: int) -> None:
+        left_root = find(left)
+        right_root = find(right)
+        if left_root != right_root:
+            parents[right_root] = left_root
+
+    first_by_scene: dict[tuple[str, str], int] = {}
+    for index, record in enumerate(items):
+        work_id = str(record.get("work_id") or record.get("source") or "unknown")
+        scene_ids = sampling_values(record, "scene_ids")
+        if scene_ids == ["unknown"]:
+            continue
+        for scene_id in scene_ids:
+            key = (work_id, scene_id)
+            if key in first_by_scene:
+                union(index, first_by_scene[key])
+            else:
+                first_by_scene[key] = index
+
+    grouped: dict[int, list[dict]] = defaultdict(list)
+    for index, record in enumerate(items):
+        grouped[find(index)].append(record)
+    groups = [sorted(group, key=lambda item: str(item["chunk_id"])) for group in grouped.values()]
+    groups.sort(key=lambda group: min(str(item["chunk_id"]) for item in group))
+    return groups
+
+
+def summarize_scene_group(group: Sequence[dict]) -> dict:
+    first = group[0]
+    work_id = str(first.get("work_id") or first.get("source") or "unknown")
+    values = {
+        field: sorted({value for record in group for value in sampling_values(record, field) if value != "unknown"})
+        for field in SAMPLING_FIELDS
+    }
+    identity = json.dumps(
+        {
+            "work_id": work_id,
+            "scene_ids": values["scene_ids"],
+            "chunk_ids": sorted(str(record["chunk_id"]) for record in group),
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    group_id = f"scene-{hashlib.sha256(identity.encode('utf-8')).hexdigest()[:16]}"
+    return {
+        "chunk_id": group_id,
+        "scene_group_id": group_id,
+        "source": first.get("source", ""),
+        "work_id": work_id,
+        **values,
+        "records": list(group),
+    }
+
+
+def recommend_budget(records: Sequence[dict], scene_groups: Sequence[Sequence[dict]] | None = None) -> tuple[int, dict]:
+    """Return a corpus-adaptive target number of close-read chunks."""
+    items = list(records)
+    if not items:
+        raise ValueError("索引中没有文本块")
+    groups = list(scene_groups) if scene_groups is not None else group_records_by_scene(items)
+    available = len(items)
+    work_count = len({str(item.get("work_id") or item.get("source") or "unknown") for item in items})
+    strata = {
+        field: len({value for item in items for value in sampling_values(item, field) if value != "unknown"})
+        for field in SAMPLING_FIELDS
+        if field != "scene_ids"
+    }
+    if available <= 24:
+        budget = available
+    else:
+        candidates = [
+            24,
+            6 * work_count,
+            math.ceil(len(groups) * 0.25),
+            2 * strata["scene_types"],
+            2 * strata["viewpoints"],
+            strata["characters"],
+            strata["relationship_states"],
+            strata["emotions"],
+            2 * strata["chapter_positions"],
+        ]
+        budget = min(available, max(candidates))
+    return budget, {
+        "available_chunks": available,
+        "work_count": work_count,
+        "scene_group_count": len(groups),
+        "semantic_strata": strata,
+        "formula": "min(A, max(24, 6N, ceil(0.25G), 2T, 2V, C, R, E, 2P))",
+    }
+
+
+def select_scene_groups(groups: Sequence[Sequence[dict]], chunk_budget: int, seed: int) -> list[list[dict]]:
+    """Select whole scene groups until the requested chunk budget is reached."""
+    summaries = [summarize_scene_group(group) for group in groups]
+    ordered = balanced_select(summaries, len(summaries), seed)
+    selected: list[list[dict]] = []
+    selected_chunks = 0
+    for summary in ordered:
+        if selected_chunks >= chunk_budget:
+            break
+        group = list(summary["records"])
+        selected.append(group)
+        selected_chunks += len(group)
+    return selected
+
+
 def coverage_summary(records: Sequence[dict]) -> dict:
     def unique(field: str) -> list[str]:
         values = []
@@ -521,6 +640,8 @@ def coverage_summary(records: Sequence[dict]) -> dict:
     return {
         "chunk_count": len(records),
         "work_ids": sorted({str(record.get("work_id", "")) for record in records if record.get("work_id")}),
+        "scene_ids": unique("scene_ids"),
+        "scene_group_ids": sorted({str(record.get("scene_group_id", "")) for record in records if record.get("scene_group_id")}),
         "scene_types": unique("scene_types"),
         "viewpoints": unique("viewpoints"),
         "characters": unique("characters"),
@@ -533,32 +654,67 @@ def coverage_summary(records: Sequence[dict]) -> dict:
 def build_sampling_ledger(
     records: Sequence[dict],
     index_sha256: str,
-    budget: int,
+    budget: int | None = None,
     holdout_ratio: float = 0.2,
     seed: int = 20260831,
 ) -> dict:
-    if budget < 1:
+    if budget is not None and budget < 1:
         raise ValueError("budget 必须至少为 1")
     if not 0 <= holdout_ratio < 1:
         raise ValueError("holdout_ratio 必须在 0（含）到 1（不含）之间")
     if not records:
         raise ValueError("索引中没有文本块")
 
-    manual_holdout = [record for record in records if record.get("holdout") is True]
-    if manual_holdout:
-        holdout = sorted(manual_holdout, key=lambda record: stable_record_key(record, seed))
-    elif len(records) >= 10 and holdout_ratio > 0:
-        holdout_count = min(len(records) - 1, max(2, round(len(records) * holdout_ratio)))
-        holdout = balanced_select(records, holdout_count, seed + 1)
+    scene_groups = group_records_by_scene(records)
+    group_summaries = [summarize_scene_group(group) for group in scene_groups]
+    manually_held_group_ids = {
+        summary["scene_group_id"]
+        for summary in group_summaries
+        if any(record.get("holdout") is True for record in summary["records"])
+    }
+    if manually_held_group_ids:
+        holdout_groups = [
+            list(summary["records"])
+            for summary in group_summaries
+            if summary["scene_group_id"] in manually_held_group_ids
+        ]
+    elif len(scene_groups) >= 10 and holdout_ratio > 0:
+        holdout_group_count = min(len(scene_groups) - 1, max(2, round(len(scene_groups) * holdout_ratio)))
+        selected_summaries = balanced_select(group_summaries, holdout_group_count, seed + 1)
+        selected_group_ids = {summary["scene_group_id"] for summary in selected_summaries}
+        holdout_groups = [
+            list(summary["records"])
+            for summary in group_summaries
+            if summary["scene_group_id"] in selected_group_ids
+        ]
     else:
-        holdout = []
-    holdout_ids = {record["chunk_id"] for record in holdout}
-    candidates = [record for record in records if record["chunk_id"] not in holdout_ids]
-    analysis = balanced_select(candidates, min(budget, len(candidates)), seed)
+        holdout_groups = []
+    holdout_group_ids = {summarize_scene_group(group)["scene_group_id"] for group in holdout_groups}
+    analysis_groups_available = [
+        group for group in scene_groups if summarize_scene_group(group)["scene_group_id"] not in holdout_group_ids
+    ]
+    analysis_candidates = [record for group in analysis_groups_available for record in group]
+    if not analysis_candidates:
+        raise ValueError("留出设置覆盖了全部场景组，至少保留一个场景组用于分析")
+    recommended_budget, budget_basis = recommend_budget(analysis_candidates, analysis_groups_available)
+    target_budget = recommended_budget if budget is None else min(budget, len(analysis_candidates))
+    analysis_groups = select_scene_groups(analysis_groups_available, target_budget, seed)
+
+    def expand(groups: Sequence[Sequence[dict]]) -> list[dict]:
+        expanded = []
+        for group in groups:
+            group_id = summarize_scene_group(group)["scene_group_id"]
+            for record in group:
+                expanded.append({**record, "scene_group_id": group_id})
+        return expanded
+
+    analysis = expand(analysis_groups)
+    holdout = expand(holdout_groups)
 
     def item(record: dict, role: str) -> dict:
         return {
             "chunk_id": record["chunk_id"],
+            "scene_group_id": record["scene_group_id"],
             "source": record["source"],
             "work_id": record.get("work_id", record["source"]),
             "scene_ids": record.get("scene_ids", []),
@@ -580,9 +736,21 @@ def build_sampling_ledger(
         "index_schema_version": SCHEMA_VERSION,
         "index_sha256": index_sha256,
         "seed": seed,
+        "budget_mode": "auto" if budget is None else "manual",
         "budget_requested": budget,
+        "budget_effective": target_budget,
+        "budget_recommended": recommended_budget,
+        "budget_basis": budget_basis,
+        "budget_overshoot_chunks": max(0, len(analysis) - target_budget),
         "holdout_ratio": holdout_ratio,
-        "selection_method": "work_round_robin_then_semantic_novelty_then_stable_hash",
+        "selection_method": "scene_group_atomic_then_work_round_robin_then_semantic_novelty_then_stable_hash",
+        "scene_grouping_status": (
+            "complete" if all(record.get("scene_ids") for record in records)
+            else "partial" if any(record.get("scene_ids") for record in records)
+            else "unavailable"
+        ),
+        "analysis_scene_group_count": len(analysis_groups),
+        "holdout_scene_group_count": len(holdout_groups),
         "analysis_coverage": coverage_summary(analysis),
         "holdout_coverage": coverage_summary(holdout),
         "items": [item(record, "analysis") for record in analysis] + [item(record, "holdout") for record in holdout],
@@ -597,22 +765,74 @@ def read_ledger(path: Path) -> dict:
     items = ledger.get("items")
     if not isinstance(items, list):
         raise ValueError("取样账本 items 必须是数组")
+    budget_mode = ledger.get("budget_mode")
+    if budget_mode not in {"auto", "manual"}:
+        raise ValueError("取样账本 budget_mode 必须是 auto/manual")
+    budget_requested = ledger.get("budget_requested")
+    if budget_mode == "auto" and budget_requested is not None:
+        raise ValueError("自动预算的 budget_requested 必须为 null")
+    if budget_mode == "manual" and (
+        isinstance(budget_requested, bool) or not isinstance(budget_requested, int) or budget_requested < 1
+    ):
+        raise ValueError("手工预算的 budget_requested 必须是正整数")
+    for field in ("budget_effective", "budget_recommended"):
+        value = ledger.get(field)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            raise ValueError(f"取样账本 {field} 必须是正整数")
+    overshoot = ledger.get("budget_overshoot_chunks")
+    if isinstance(overshoot, bool) or not isinstance(overshoot, int) or overshoot < 0:
+        raise ValueError("取样账本 budget_overshoot_chunks 必须是非负整数")
+    if not isinstance(ledger.get("budget_basis"), dict):
+        raise ValueError("取样账本 budget_basis 必须是对象")
+    if ledger.get("scene_grouping_status") not in {"complete", "partial", "unavailable"}:
+        raise ValueError("取样账本 scene_grouping_status 不受支持")
     ids = []
+    roles_by_group: dict[str, set[str]] = defaultdict(set)
     for index, item in enumerate(items, 1):
         if not isinstance(item, dict):
             raise ValueError(f"取样账本 items[{index}] 必须是对象")
         chunk_id = item.get("chunk_id")
         if not isinstance(chunk_id, str) or not chunk_id.strip():
             raise ValueError(f"取样账本 items[{index}].chunk_id 必须是非空字符串")
+        scene_group_id = item.get("scene_group_id")
+        if not isinstance(scene_group_id, str) or not scene_group_id.strip():
+            raise ValueError(f"取样账本 items[{index}].scene_group_id 必须是非空字符串")
         if not isinstance(item.get("role"), str) or item.get("role") not in {"analysis", "holdout"}:
             raise ValueError(f"取样账本 items[{index}].role 不受支持")
         if not isinstance(item.get("status"), str) or item.get("status") not in LEDGER_STATUSES:
             raise ValueError(f"取样账本 items[{index}].status 不受支持")
         if item.get("role") == "holdout" and item.get("status") != "holdout":
             raise ValueError(f"取样账本 items[{index}] 的留出状态不能被修改")
+        if item.get("role") == "analysis" and item.get("status") == "holdout":
+            raise ValueError(f"取样账本 items[{index}] 的分析角色不能使用 holdout 状态")
+        roles_by_group[scene_group_id].add(item["role"])
         ids.append(chunk_id)
     if len(ids) != len(set(ids)):
         raise ValueError("取样账本包含重复 chunk_id")
+    mixed_groups = sorted(group_id for group_id, roles in roles_by_group.items() if len(roles) > 1)
+    if mixed_groups:
+        raise ValueError(f"同一场景组不能同时进入分析和留出：{', '.join(mixed_groups)}")
+    observed_analysis_groups = len({
+        item["scene_group_id"] for item in items if item.get("role") == "analysis"
+    })
+    observed_holdout_groups = len({
+        item["scene_group_id"] for item in items if item.get("role") == "holdout"
+    })
+    if ledger.get("analysis_scene_group_count") != observed_analysis_groups:
+        raise ValueError("取样账本 analysis_scene_group_count 与 items 不一致")
+    if ledger.get("holdout_scene_group_count") != observed_holdout_groups:
+        raise ValueError("取样账本 holdout_scene_group_count 与 items 不一致")
+    analysis_item_count = sum(item.get("role") == "analysis" for item in items)
+    holdout_item_count = sum(item.get("role") == "holdout" for item in items)
+    for field, expected in (
+        ("analysis_coverage", analysis_item_count),
+        ("holdout_coverage", holdout_item_count),
+    ):
+        coverage = ledger.get(field)
+        if not isinstance(coverage, dict) or coverage.get("chunk_count") != expected:
+            raise ValueError(f"取样账本 {field}.chunk_count 与 items 不一致")
+    if overshoot != max(0, analysis_item_count - ledger["budget_effective"]):
+        raise ValueError("取样账本 budget_overshoot_chunks 与实际分析块数不一致")
     return ledger
 
 
@@ -686,7 +906,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     sample = subparsers.add_parser("sample", help="建立可复现的精读与留出取样账本")
     sample.add_argument("index", type=Path)
     sample.add_argument("--output", type=Path, required=True)
-    sample.add_argument("--budget", type=int, required=True)
+    sample.add_argument("--budget", type=int, help="精读文本块目标数；省略时按语料覆盖自动计算")
     sample.add_argument("--holdout-ratio", type=float, default=0.2)
     sample.add_argument("--seed", type=int, default=20260831)
 
@@ -770,7 +990,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             write_json(ledger, args.output)
             analysis_count = sum(item["role"] == "analysis" for item in ledger["items"])
             holdout_count = sum(item["role"] == "holdout" for item in ledger["items"])
-            print(f"已选择精读 {analysis_count} 块、留出 {holdout_count} 块：{args.output}")
+            print(
+                f"已选择精读 {analysis_count} 块/{ledger['analysis_scene_group_count']} 个场景组、"
+                f"留出 {holdout_count} 块/{ledger['holdout_scene_group_count']} 个场景组：{args.output}"
+            )
             return 0
 
         ledger = read_ledger(args.ledger)

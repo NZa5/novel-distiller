@@ -26,8 +26,10 @@ Novel Distiller 只分析用户提供的中文小说正文和元数据。它把�
 
 - 叙述者姿态、视角、知识边界、评价方式和信息释放；
 - 句子运动、段落功能、用词、修辞、声音与中文特有语言现象；
+- 话题与指代链、省略、信息结构、情态、证据性、否定、对话语用与修复、幽默、反讽和讽刺；
 - 人物引入、能动性、情绪通道、关系权力和角色声音差异；
 - 事件选择、因果、冲突、情节推进、时间、转场和结尾；
+- 多线情节与章卷节奏、视角转移、关系网络演化、伏笔回收、母题轨迹和时期漂移；
 - 空间、社会系统、母题、主题、类型预期和读者知识；
 - 稳定规律、条件规律、可变选择、反例和证据缺口。
 
@@ -137,14 +139,14 @@ python scripts/analyze_style.py corpus/target-author --format markdown --output 
 python scripts/corpus_index.py manifest corpus/target-author --output work/corpus-manifest.json
 # 核对 work_id，并在清单中补充有原文依据的场景、视角和角色元数据。
 python scripts/corpus_index.py build corpus/target-author --manifest work/corpus-manifest.json --output work/corpus-index.jsonl
-python scripts/corpus_index.py sample work/corpus-index.jsonl --output work/sampling-ledger.json --budget <B> --seed 20260831
+python scripts/corpus_index.py sample work/corpus-index.jsonl --output work/sampling-ledger.json --seed 20260831
 python scripts/corpus_index.py mark work/sampling-ledger.json --index work/corpus-index.jsonl --chunk-id CHUNK_ID --status analyzed
 python scripts/corpus_index.py search work/corpus-index.jsonl --scene-type confrontation --character 人物名 --exclude-holdout --top 4 --include-text
 ```
 
-清单骨架必须经过核对：同一部小说拆成多个文件时应使用相同 `work_id`，没有依据的元数据保持为空。schema v3 文本块除正文、来源 SHA-256、预处理指纹和定位外，还保存作品、时期、场景、视角、角色、关系、情绪、章节位置与留出标记。取样账本先按作品轮转，再确定性优先补齐欠覆盖的场景、视角、角色、关系、情绪和章节位置，并保存跨会话的待处理/已完成状态；它绑定精确索引哈希，索引变化后不能误用旧进度。
+清单骨架必须经过核对：同一部小说拆成多个文件时应使用相同 `work_id`，没有依据的元数据保持为空。schema v3 文本块除正文、来源 SHA-256、预处理指纹和定位外，还保存作品、时期、场景、视角、角色、关系、情绪、章节位置与留出标记。共享已核对 `scene_id` 的文本块在分析集和留出集中保持为不可拆分的原子组；账本再按作品轮转并优先补齐欠覆盖的语义分层。它保存跨会话状态并绑定精确索引哈希，索引变化后不能误用旧进度。
 
-`--budget` 表示需要精读的分析文本块数量，不是全部索引块数，也不包含留出块。令 `A` 为可用非留出块数、`N` 为作品数：`A<=24` 时使用 `B=A`；否则默认 `B=min(A, max(24, min(80, 6*N)))`，除非用户另设限制。
+省略 `--budget` 时，工具根据可用文本块、作品、场景组和语义分层广度自动计算精读目标。手工 `--budget B` 仍是目标而不是强制切分点，因为完整场景组不会被拆开；超出数量会写入账本。缺少场景 ID 时会明确标成分组限制，不能冒充已完成场景级隔离。
 
 ### 3. 可选的用户自备作者对照
 
@@ -160,7 +162,7 @@ python scripts/compare_style.py contrast --target corpus/target-author --control
 python scripts/validate_profile.py work/author-profile.json --evidence work/evidence-map.jsonl --index work/corpus-index.jsonl
 ```
 
-校验器检查完整的场景模式、角色声音和写作包结构，受控值、计数与引用，覆盖和留出声明，并把每条证据定位与当前索引及原始小说核对。虚构路径、未知文本块、变化后的来源哈希、越界定位和原文中不存在的摘录都会失败。它仍不能证明语义解释本身正确。
+校验器强制要求全部 35 个固定分析维度，核对每条规则、证据维度和写作包引用，检查完整的场景模式与角色声音结构、受控值、计数和留出声明，并把每条证据定位与当前索引及原始小说核对。虚构路径、未知文本块、变化后的来源哈希、越界定位和原文中不存在的摘录都会失败。它仍不能证明语义解释本身正确。
 
 ## 画像契约
 
@@ -193,7 +195,7 @@ novel-distiller/
 └── tests/
 ```
 
-`SKILL.md` 是运行入口。三个当前使用的 reference 文件分别保存取样方法、24 维分析框架，以及人类/机器输出契约。
+`SKILL.md` 是运行入口。三个当前使用的 reference 文件分别保存按场景分组的取样方法、35 维分析框架，以及人类/机器输出契约。
 
 ## 开发与测试
 

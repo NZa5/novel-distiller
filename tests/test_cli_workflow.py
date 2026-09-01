@@ -58,7 +58,7 @@ class CliWorkflowTests(unittest.TestCase):
                 ]), 0)
                 self.assertEqual(corpus_index.main([
                     "sample", str(index_path), "--output", str(ledger_path),
-                    "--budget", "4", "--holdout-ratio", "0", "--seed", "11",
+                    "--holdout-ratio", "0", "--seed", "11",
                 ]), 0)
 
             ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
@@ -79,6 +79,7 @@ class CliWorkflowTests(unittest.TestCase):
                 ]), 0)
 
             updated = json.loads(ledger_path.read_text(encoding="utf-8"))
+            self.assertEqual(updated["budget_mode"], "auto")
             marked = next(item for item in updated["items"] if item["chunk_id"] == chunk_id)
             self.assertEqual(marked["status"], "analyzed")
             self.assertIn("场景：confrontation", matches_path.read_text(encoding="utf-8"))

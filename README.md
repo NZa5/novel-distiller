@@ -26,8 +26,10 @@ Recognizable prose is more than favorite words or average sentence length. Novel
 
 - narrator stance, viewpoint, knowledge, evaluation, and information release;
 - sentence movement, paragraph function, diction, rhetoric, sound, and Chinese-specific language features;
+- topic and reference chains, ellipsis, information structure, modality, evidentiality, negation, dialogue pragmatics, repair, humor, irony, and satire;
 - character introduction, agency, emotion channels, relationship power, and distinct voices;
 - event selection, causality, conflict, plot movement, time, transitions, and endings;
+- multi-thread and chapter rhythm, viewpoint transitions, relationship-network evolution, foreshadowing/payoff, motif trajectories, and period drift;
 - setting, social systems, motifs, themes, genre expectations, and reader knowledge;
 - stable patterns, conditional patterns, variable choices, counterexamples, and evidence gaps.
 
@@ -137,14 +139,14 @@ If suspected fixed-width wrapping or unpaired, reversed, or cross-line quote pai
 python scripts/corpus_index.py manifest corpus/target-author --output work/corpus-manifest.json
 # Review work_id and add supported scene/viewpoint/character metadata in the manifest.
 python scripts/corpus_index.py build corpus/target-author --manifest work/corpus-manifest.json --output work/corpus-index.jsonl
-python scripts/corpus_index.py sample work/corpus-index.jsonl --output work/sampling-ledger.json --budget <B> --seed 20260831
+python scripts/corpus_index.py sample work/corpus-index.jsonl --output work/sampling-ledger.json --seed 20260831
 python scripts/corpus_index.py mark work/sampling-ledger.json --index work/corpus-index.jsonl --chunk-id CHUNK_ID --status analyzed
 python scripts/corpus_index.py search work/corpus-index.jsonl --scene-type confrontation --character 人物名 --exclude-holdout --top 4 --include-text
 ```
 
-The manifest skeleton must be reviewed: files from the same novel need the same `work_id`, and unsupported metadata stays empty. Schema-v3 chunks store work, period, scene, viewpoint, character, relationship, emotion, chapter-position and holdout metadata alongside text, source SHA-256, preprocessing fingerprint and locators. The ledger rotates across works, then deterministically prioritizes under-covered scene, viewpoint, character, relationship, emotion, and chapter-position values. It keeps pending/completed state across sessions and is bound to the exact index hash, so stale progress cannot be applied after an index change.
+The manifest skeleton must be reviewed: files from the same novel need the same `work_id`, and unsupported metadata stays empty. Schema-v3 chunks store work, period, scene, viewpoint, character, relationship, emotion, chapter-position and holdout metadata alongside text, source SHA-256, preprocessing fingerprint and locators. Chunks sharing a reviewed `scene_id` remain atomic across analysis and holdout; the ledger then rotates across works and prioritizes under-covered semantic strata. It keeps pending/completed state across sessions and is bound to the exact index hash, so stale progress cannot be applied after an index change.
 
-`--budget` counts close-read analysis chunks, not all indexed chunks or holdouts. Let `A` be available non-holdout chunks and `N` the number of works: use `B=A` when `A<=24`; otherwise default to `B=min(A, max(24, min(80, 6*N)))`, unless the user sets another limit.
+Omit `--budget` to derive a target from available chunks, works, scene groups and semantic-strata breadth. A manual `--budget B` remains a target rather than a hard split point because a complete scene group is never divided; any overshoot is recorded in the ledger. Missing scene IDs are surfaced as a grouping limitation instead of being treated as verified scene-level isolation.
 
 ### 3. Optional supplied-author contrast
 
@@ -160,7 +162,7 @@ The report first summarizes chunks within each work and then gives works equal w
 python scripts/validate_profile.py work/author-profile.json --evidence work/evidence-map.jsonl --index work/corpus-index.jsonl
 ```
 
-The validator checks complete scene-mode, character-voice and writing-packet structures; controlled values, counts and references; coverage and holdout claims; and every evidence locator against the current index and source file. Fake paths, unknown chunk IDs, changed source hashes, out-of-range locators and excerpts absent from the indexed text fail validation. It still cannot prove that the semantic interpretation is correct.
+The validator requires all 35 registered analysis dimensions, validates each rule/evidence dimension and writing-packet reference, checks complete scene-mode and character-voice structures, controlled values, counts and holdout claims, and resolves every evidence locator against the current index and source file. Fake paths, unknown chunk IDs, changed source hashes, out-of-range locators and excerpts absent from the indexed text fail validation. It still cannot prove that the semantic interpretation is correct.
 
 ## Profile Contract
 
@@ -193,7 +195,7 @@ novel-distiller/
 └── tests/
 ```
 
-`SKILL.md` is the runtime entry point. The three active references contain the sampling method, 24-dimension analysis framework, and human/machine output contract.
+`SKILL.md` is the runtime entry point. The three active references contain the scene-grouped sampling method, 35-dimension analysis framework, and human/machine output contract.
 
 ## Development
 

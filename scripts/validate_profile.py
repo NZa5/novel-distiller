@@ -13,8 +13,46 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "1.1"
 INDEX_SCHEMA_VERSION = 3
+ANALYSIS_DIMENSIONS = (
+    "syntax_rhythm",
+    "paragraph_organization",
+    "diction_register",
+    "function_words_cohesion",
+    "rhetoric_imagery_senses",
+    "sound_repetition",
+    "chinese_specific_features",
+    "narrator_evaluative_stance",
+    "viewpoint_focalization_interiority",
+    "speech_dialogue_organization",
+    "narrative_time",
+    "information_release",
+    "openings_transitions_endings",
+    "character_introduction_reference",
+    "characterization_channels",
+    "desire_agency_character_arc",
+    "relationships_social_network",
+    "event_selection_density",
+    "causality_escalation",
+    "conflict_plot_arc",
+    "space_environment",
+    "world_rules_social_texture",
+    "theme_motif_value_structure",
+    "genre_tradition_reader_contract",
+    "topic_reference_ellipsis",
+    "modality_evidentiality_negation",
+    "conversation_pragmatics_repair",
+    "humor_irony_satire",
+    "plot_threads_chapter_rhythm",
+    "viewpoint_transition_matrix",
+    "relationship_network_evolution",
+    "foreshadowing_payoff",
+    "motif_imagery_trajectory",
+    "period_style_drift",
+    "negative_profile_avoidance",
+)
+ANALYSIS_DIMENSION_SET = set(ANALYSIS_DIMENSIONS)
 PROFILE_SCOPES = {"passage", "work", "period", "author"}
 RULE_LEVELS = {"sentence", "paragraph", "scene", "chapter", "work", "period", "author"}
 CLASSIFICATIONS = {"stable", "conditional", "variable", "uncertain"}
@@ -33,7 +71,7 @@ PROFILE_FIELDS = (
     "surface_ranges", "writing_packet", "limitations",
 )
 RULE_FIELDS = (
-    "rule_id", "level", "classification", "category", "trigger", "observable",
+    "rule_id", "dimension", "level", "classification", "category", "trigger", "observable",
     "mechanism", "effect", "action", "limits", "evidence_ids",
     "support_sample_count", "support_work_count", "support_scene_type_count",
     "counterexample_count", "holdout_status", "distinctiveness_status",
@@ -50,7 +88,7 @@ CHARACTER_VOICE_FIELDS = (
     "voice_id", "character_label", "conditions", "rule_ids", "evidence_ids",
 )
 WRITING_PACKET_FIELDS = (
-    "master_voice", "active_rule_ids", "scene_mode_ids", "character_voice_ids",
+    "master_voice", "active_dimension_ids", "active_rule_ids", "scene_mode_ids", "character_voice_ids",
     "rule_precedence", "drift_corrections",
 )
 INDEX_FIELDS = (
@@ -235,13 +273,26 @@ def validate_profile(
             dimension = item.get("dimension")
             require_nonempty_string(dimension, f"{label}.dimension", errors)
             if isinstance(dimension, str):
+                if dimension not in ANALYSIS_DIMENSION_SET:
+                    errors.append(f"{label}.dimension 不受支持：{dimension}")
                 if dimension in coverage_by_dimension:
                     errors.append(f"coverage.dimension 重复：{dimension}")
                 coverage_by_dimension[dimension] = item
             if not isinstance(item.get("status"), str) or item.get("status") not in COVERAGE_STATUSES:
                 errors.append(f"{label}.status 不受支持")
             require_nonnegative_int(item.get("evidence_count"), f"{label}.evidence_count", errors)
-            validate_unique_string_list(item.get("uncovered"), f"{label}.uncovered", errors)
+            uncovered = validate_unique_string_list(item.get("uncovered"), f"{label}.uncovered", errors)
+            if item.get("status") == "analyzed" and item.get("evidence_count") == 0:
+                errors.append(f"{label} 标为 analyzed 时 evidence_count 必须大于 0")
+            if item.get("status") == "insufficient" and not uncovered:
+                errors.append(f"{label} 标为 insufficient 时必须说明 uncovered")
+            if item.get("status") == "not_applicable" and item.get("evidence_count") != 0:
+                errors.append(f"{label} 标为 not_applicable 时 evidence_count 必须为 0")
+        missing_dimensions = [
+            dimension for dimension in ANALYSIS_DIMENSIONS if dimension not in coverage_by_dimension
+        ]
+        if missing_dimensions:
+            errors.append(f"coverage 缺少固定分析维度：{', '.join(missing_dimensions)}")
 
     require_nonempty_string(profile["master_voice"], "master_voice", errors)
     validate_unique_string_list(profile["limitations"], "limitations", errors, False)
@@ -264,6 +315,9 @@ def validate_profile(
             if rule_id in rules_by_id:
                 errors.append(f"rule_id 重复：{rule_id}")
             rules_by_id[rule_id] = rule
+        dimension = rule.get("dimension")
+        if not isinstance(dimension, str) or dimension not in ANALYSIS_DIMENSION_SET:
+            errors.append(f"{label}.dimension 不受支持：{dimension}")
         if not isinstance(rule.get("classification"), str) or rule.get("classification") not in CLASSIFICATIONS:
             errors.append(f"{label}.classification 不受支持")
         if not isinstance(rule.get("level"), str) or rule.get("level") not in RULE_LEVELS:
@@ -279,7 +333,7 @@ def validate_profile(
         for field in ("support_sample_count", "support_work_count", "support_scene_type_count", "counterexample_count"):
             require_nonnegative_int(rule.get(field), f"{label}.{field}", errors)
         validate_unique_string_list(rule.get("evidence_ids"), f"{label}.evidence_ids", errors, False)
-        for field in ("level", "category", "trigger", "observable", "mechanism", "effect", "action", "limits", "confidence_basis"):
+        for field in ("dimension", "level", "category", "trigger", "observable", "mechanism", "effect", "action", "limits", "confidence_basis"):
             require_nonempty_string(rule.get(field), f"{label}.{field}", errors)
 
     rule_ids = set(rules_by_id)
@@ -310,6 +364,7 @@ def validate_profile(
     require_fields(writing_packet, WRITING_PACKET_FIELDS, "writing_packet", errors)
     require_nonempty_string(writing_packet.get("master_voice"), "writing_packet.master_voice", errors)
     for field, known in (
+        ("active_dimension_ids", ANALYSIS_DIMENSION_SET),
         ("active_rule_ids", rule_ids),
         ("scene_mode_ids", set(scene_modes)),
         ("character_voice_ids", set(voices)),
@@ -411,6 +466,8 @@ def validate_profile(
         dimension = item.get("dimension")
         require_nonempty_string(dimension, f"{label}.dimension", errors)
         if isinstance(dimension, str) and isinstance(evidence_id, str):
+            if dimension not in ANALYSIS_DIMENSION_SET:
+                errors.append(f"{label}.dimension 不受支持：{dimension}")
             evidence_by_dimension[dimension].add(evidence_id)
             if dimension not in coverage_by_dimension:
                 errors.append(f"{label}.dimension 未在 coverage 中声明：{dimension}")
@@ -478,6 +535,8 @@ def validate_profile(
                 errors.append(f"规则 {rule_id} 引用了不存在的证据：{evidence_id}")
             elif item.get("rule_id") != rule_id:
                 errors.append(f"证据 {evidence_id} 的 rule_id 与规则 {rule_id} 不一致")
+            elif item.get("dimension") != rule.get("dimension"):
+                errors.append(f"证据 {evidence_id} 的 dimension 与规则 {rule_id} 不一致")
 
         records = evidence_by_rule.get(rule_id, [])
         support = [item for item in records if item.get("evidence_role") == "support"]
