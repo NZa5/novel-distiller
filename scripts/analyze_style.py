@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import codecs
 import glob
+import hashlib
 import json
 import math
 import re
@@ -16,6 +17,7 @@ from typing import Iterable, Sequence
 
 
 VALID_SUFFIXES = {".txt", ".md"}
+REPORT_SCHEMA_VERSION = "1.0"
 SENTENCE_SPLIT_RE = re.compile(r'(?:[。！？!?]+|…{2,})(?:[”’」』】》）"])?')
 QUOTE_PAIR_SPECS = (
     ("中文弯双引号", "“", "”", re.compile(r"“([^”\r\n]*)”")),
@@ -396,6 +398,8 @@ def build_report(
                 strip_annotations=strip_annotations,
             )
             metrics["encoding"] = encoding
+            metrics["source_path"] = str(path.resolve())
+            metrics["source_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
             sources.append(metrics)
             texts.append(prepared)
         except (OSError, UnicodeError) as exc:
@@ -418,6 +422,7 @@ def build_report(
                 "部分对白可能无法可靠识别，请核对引号配对和换行。"
             )
     return {
+        "schema_version": REPORT_SCHEMA_VERSION,
         "measurement": {
             "character_unit": "非空白字符；句长和段长只计算字母、数字与汉字",
             "paragraph": "预处理后的每个非空行视为一个段落；固定行宽电子书应先启用硬换行重排",

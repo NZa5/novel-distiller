@@ -41,6 +41,10 @@ The result is a reusable analysis interface rather than a list of vague adjectiv
 | `author-profile.json` | Canonical machine-readable profile with rules, conditions, confidence basis, scene modes, voices, and precedence |
 | `evidence-map.jsonl` | One traceable evidence record per line with source hash, locator, short excerpt, and evidence role |
 | `writing-packet.md` | Compact prompt-ready extraction for a separate writing AI |
+| `corpus-manifest.json` | Reviewed work, sample, chapter, scene, viewpoint, character, and holdout metadata |
+| `corpus-index.jsonl` | Hash-bound chunks and source locators used by evidence records |
+| `sampling-ledger.json` | Deterministic analysis plan, progress, coverage, and scene-granularity status |
+| `style-metrics.json` | Machine-readable surface measurements, source hashes, and input warnings |
 
 The profile distinguishes passage-, work-, period-, and author-level claims. Author-level claims require separated evidence across multiple supplied works.
 
@@ -64,7 +68,7 @@ Keep `SKILL.md`, `scripts/`, and `references/` together. Reload or rescan skills
 
 ```text
 Use the novel-distiller skill to analyze these Chinese novels.
-Build a complete evidence-backed author profile, distinguish stable and conditional patterns from variable or uncertain findings, and save the four reusable analysis artifacts.
+Build a complete evidence-backed analysis bundle, distinguish stable and conditional patterns from variable or uncertain findings, and save all reusable artifacts and their validation support files.
 ```
 
 ## Workflow
@@ -73,19 +77,20 @@ Build a complete evidence-backed author profile, distinguish stable and conditio
 User-supplied novels
         │
         ├─ corpus inventory and provenance
-        ├─ reviewed work/scene metadata manifest
+        ├─ reviewed work/sample/chapter/scene metadata manifest
         ├─ complete surface measurement
-        ├─ deterministic sampling ledger across works and scene types
+        ├─ deterministic first-round ledger across works and real scenes
         ├─ resumable progress with an index-integrity check
         ├─ multi-pass semantic close reading
-        ├─ evidence cards, counterexamples, and counts
-        ├─ holdout challenge when enough scenes exist
-        └─ full-ledger re-evaluation
+        ├─ evidence cards, full counterexample search, and counts
+        ├─ strict holdout challenge and optional control evidence
+        ├─ saturation rounds or complete-corpus close reading
+        └─ complete-bundle validation
         ▼
-author-analysis.md + author-profile.json + evidence-map.jsonl + writing-packet.md
+analysis artifacts + manifest + index + ledger + metrics
 ```
 
-For long corpora, the skill measures all supplied files, close-reads a balanced sample, then targets uncovered strata and contradictions. The longest work and earliest batch must not silently dominate the profile.
+For long corpora, the skill measures all supplied files, close-reads a balanced first-round sample, then targets uncovered strata, contradictions, and counterexamples until the declared saturation condition is met. A complete-corpus mode is also available. The longest work and earliest batch must not silently dominate the profile.
 
 ## Prepare the Corpus
 
@@ -116,6 +121,7 @@ The Agent performs semantic analysis. The scripts make preprocessing, measuremen
 
 ```bash
 python scripts/analyze_style.py corpus/target-author --format markdown --output work/style-metrics.md
+python scripts/analyze_style.py corpus/target-author --format json --output work/style-metrics.json
 ```
 
 Each non-empty prepared line is treated as a normal Chinese-fiction paragraph. Paired ASCII straight double quotes on one line are recognized as dialogue alongside Chinese quote styles. Add `--reflow-hard-wrap` for fixed-width eBook line wrapping and `--strip-annotations` for a separate trailing 注释/注釋 section.
@@ -126,32 +132,43 @@ If suspected fixed-width wrapping or unpaired, reversed, or cross-line quote pai
 
 ```bash
 python scripts/corpus_index.py manifest corpus/target-author --output work/corpus-manifest.json
-# Review work_id and add supported scene/viewpoint/character metadata in the manifest.
+# Review work_id and add supported sample/chapter/scene/viewpoint/character metadata.
 python scripts/corpus_index.py build corpus/target-author --manifest work/corpus-manifest.json --output work/corpus-index.jsonl
 python scripts/corpus_index.py sample work/corpus-index.jsonl --output work/sampling-ledger.json --seed 20260831
+python scripts/corpus_index.py extend work/sampling-ledger.json --index work/corpus-index.jsonl --chunk-id CHUNK_ID --note "SAT03 targeted follow-up"
 python scripts/corpus_index.py mark work/sampling-ledger.json --index work/corpus-index.jsonl --chunk-id CHUNK_ID --status analyzed
-python scripts/corpus_index.py search work/corpus-index.jsonl --scene-type confrontation --character 人物名 --exclude-holdout --top 4 --include-text
+python scripts/corpus_index.py confirm-scene work/sampling-ledger.json --index work/corpus-index.jsonl --scene-group-id SCENE_GROUP_ID --note "Verified as one continuous long scene"
+python scripts/corpus_index.py search work/corpus-index.jsonl --sample-id SAMPLE_ID --chapter-id CHAPTER_ID --scene-type confrontation --character 人物名 --exclude-holdout --top 4 --include-text
 ```
 
-The manifest skeleton must be reviewed: files from the same novel need the same `work_id`, and unsupported metadata stays empty. Schema-v3 chunks store work, period, scene, viewpoint, character, relationship, emotion, chapter-position and holdout metadata alongside text, source SHA-256, preprocessing fingerprint and locators. Chunks sharing a reviewed `scene_id` remain atomic across analysis and holdout; the ledger then rotates across works and prioritizes under-covered semantic strata. It keeps pending/completed state across sessions and is bound to the exact index hash, so stale progress cannot be applied after an index change.
+The manifest skeleton must be reviewed: files from the same novel need the same `work_id`; `sample_id` identifies a supplied excerpt, `chapter_id` identifies a chapter, and `scene_id` is reserved for an actual narrative scene. Unsupported metadata stays empty. Schema-v4 chunks store those identifiers plus period, viewpoint, character, relationship, emotion, chapter-position, holdout status, text, source SHA-256, preprocessing fingerprint, and locators. A chunk boundary is forced at every reviewed segment boundary, so one chunk cannot cross two annotated scenes. Chunks sharing a reviewed `scene_id` remain atomic across analysis and holdout; the ledger reports suspiciously coarse scene groups for review. Split a chapter-sized group, or use `confirm-scene` with a review note only when it is genuinely one continuous long scene. The ledger keeps pending/completed state across sessions and is bound to the exact index hash, so stale progress cannot be applied after an index change.
 
-Omit `--budget` to derive a target from available chunks, works, scene groups and semantic-strata breadth. A manual `--budget B` remains a target rather than a hard split point because a complete scene group is never divided; any overshoot is recorded in the ledger. Missing scene IDs are surfaced as a grouping limitation instead of being treated as verified scene-level isolation.
+Omit `--budget` to derive a stronger first-round target from available chunks, works, scene groups, and semantic-strata breadth. A manual `--budget B` remains a target rather than a hard split point because a complete scene group is never divided; any overshoot is recorded in the ledger. Missing or coarse scene IDs are surfaced as limitations. First-round completion is not saturation: `extend` adds each targeted follow-up and its complete scene group to the bound ledger before reading, and later rounds record newly found rules, newly found counterexamples, and unresolved dimensions until the declared saturation or complete-corpus condition is satisfied.
 
 ### 3. Optional supplied-author contrast
 
 ```bash
 python scripts/compare_style.py contrast --target corpus/target-author --control corpus/comparison-authors --target-manifest work/target-manifest.json --control-manifest work/control-manifest.json --output work/author-contrast.md
+python scripts/corpus_index.py build corpus/comparison-authors --manifest work/control-manifest.json --output work/comparison-index.jsonl
 ```
 
-The report first summarizes chunks within each work and then gives works equal weight. Splitting one novel across many chapter files therefore does not multiply its influence. Without manifests, each file is only a fallback work, which is valid only for a true one-file-per-work corpus. Ranked differences are close-reading candidates, not a style-similarity percentage.
+The report first summarizes chunks within each work and then gives works equal weight. Splitting one novel across many chapter files therefore does not multiply its influence. Without manifests, each file is only a fallback work, which is valid only for a true one-file-per-work corpus. Ranked differences are close-reading candidates, not a style-similarity percentage. A distinctiveness claim becomes traceable only when its control evidence resolves against the separate comparison index.
 
-### 4. Profile and evidence validation
+### 4. Complete analysis-bundle validation
 
 ```bash
-python scripts/validate_profile.py work/author-profile.json --evidence work/evidence-map.jsonl --index work/corpus-index.jsonl
+python scripts/validate_bundle.py \
+  work/author-profile.json \
+  --evidence work/evidence-map.jsonl \
+  --index work/corpus-index.jsonl \
+  --manifest work/corpus-manifest.json \
+  --ledger work/sampling-ledger.json \
+  --metrics work/style-metrics.json \
+  --analysis work/author-analysis.md \
+  --packet work/writing-packet.md
 ```
 
-The validator requires all 35 registered analysis dimensions, validates each rule/evidence dimension and writing-packet reference, checks complete scene-mode and character-voice structures, controlled values, counts and holdout claims, and resolves every evidence locator against the current index and source file. Fake paths, unknown chunk IDs, changed source hashes, out-of-range locators and excerpts absent from the indexed text fail validation. It still cannot prove that the semantic interpretation is correct.
+Append `--comparison-index work/comparison-index.jsonl` when the profile contains control evidence. The gate first validates the profile and evidence schemas, all 35 registered analysis dimensions, rule/evidence/packet references, scene modes, voices, controlled values, counts, strict holdout outcomes, and optional control evidence. It then verifies manifest, index, ledger, metrics, source hashes, analysis coverage, saturation status, JSON Pointer metric references, warning-sensitive claims, and Markdown identifiers as one bound bundle. Fake paths, unknown chunk IDs, changed hashes, unanalyzed evidence, out-of-range locators, absent excerpts, unresolved metric references, and stale support files fail validation. Passing these deterministic checks still does not prove that the semantic interpretation is correct.
 
 ## Profile Contract
 
@@ -161,9 +178,10 @@ Every major rule records:
 2. trigger, observable behavior, mechanism, effect, action, and limits;
 3. source evidence IDs, short excerpts, hashes, and locators;
 4. support sample, work, and scene-type counts;
-5. counterexample count and holdout result;
-6. cross-author distinctiveness status;
-7. confidence and a written confidence basis.
+5. the searched counterexample pool, eligible/reviewed sample IDs, matching counts, and notes;
+6. strict holdout eligible/matched counts and per-item outcomes;
+7. cross-author distinctiveness status and traceable control evidence when used;
+8. confidence and a written confidence basis.
 
 Findings remain **stable**, **conditional**, **variable**, or **uncertain**. Confidence is **high**, **medium**, or **low**, but the label is invalid without its evidence basis.
 
@@ -180,7 +198,8 @@ novel-distiller/
 │   ├── analyze_style.py
 │   ├── corpus_index.py
 │   ├── compare_style.py
-│   └── validate_profile.py
+│   ├── validate_profile.py
+│   └── validate_bundle.py
 └── tests/
 ```
 
@@ -196,7 +215,7 @@ python -X utf8 -B -m unittest discover -s tests
 
 When the host provides an Agent Skills format validator, run it against the repository root in addition to the tests.
 
-The tests cover Chinese encodings, paired and unpaired ASCII/Chinese dialogue quotes, visible input warnings, paragraph handling, metrics, collision-resistant chunk IDs, semantic metadata retrieval, deterministic/resumable sampling, work-level weighting, supplied-corpus contrast, source-backed profile validation, and the end-to-end command-line workflow.
+The tests cover Chinese encodings, paired and unpaired ASCII/Chinese dialogue quotes, visible input warnings, paragraph handling, source-bound metrics, collision-resistant chunk IDs, sample/chapter/scene metadata, deterministic/resumable sampling, coarse-scene detection, work-level weighting, supplied-corpus contrast, strict holdout and control evidence, saturation rules, complete-bundle validation, and the end-to-end command-line workflow. These are deterministic contract checks, not human proof of author recognition or semantic fidelity.
 
 ## License
 

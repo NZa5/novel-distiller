@@ -23,10 +23,12 @@ from analyze_style import (
 )
 
 
-SCHEMA_VERSION = 3
-MANIFEST_SCHEMA_VERSION = "1.0"
-LEDGER_SCHEMA_VERSION = "1.1"
+SCHEMA_VERSION = 4
+MANIFEST_SCHEMA_VERSION = "2.0"
+LEDGER_SCHEMA_VERSION = "1.2"
 SEMANTIC_FIELDS = {
+    "sample_ids": "sample_id",
+    "chapter_ids": "chapter_id",
     "scene_ids": "scene_id",
     "scene_types": "scene_type",
     "viewpoints": "viewpoint",
@@ -37,6 +39,8 @@ SEMANTIC_FIELDS = {
 }
 LEDGER_STATUSES = {"pending", "analyzed", "skipped", "needs_followup", "holdout"}
 SAMPLING_FIELDS = (
+    "sample_ids",
+    "chapter_ids",
     "scene_ids",
     "scene_types",
     "viewpoints",
@@ -71,7 +75,11 @@ def paragraph_units(text: str, target_chars: int) -> list[tuple[int, str]]:
     return [(number, unit) for number, unit in units if unit]
 
 
-def split_chunks(text: str, target_chars: int = 1800) -> list[dict]:
+def split_chunks(
+    text: str,
+    target_chars: int = 1800,
+    break_after_paragraphs: set[int] | None = None,
+) -> list[dict]:
     """Group prepared paragraphs into stable chunks near the requested size."""
     if target_chars < 200:
         raise ValueError("chunk_chars 必须至少为 200")
@@ -81,7 +89,9 @@ def split_chunks(text: str, target_chars: int = 1800) -> list[dict]:
     current_size = 0
     content_offset = 0
 
-    def flush() -> None:
+    boundaries = break_after_paragraphs or set()
+
+    def flush(boundary_after: bool = False) -> None:
         nonlocal current, current_size, content_offset
         if not current:
             return
@@ -93,27 +103,40 @@ def split_chunks(text: str, target_chars: int = 1800) -> list[dict]:
             "content_char_start": content_offset + 1 if size else content_offset,
             "content_char_end": content_offset + size,
             "text": chunk_text,
+            "_boundary_after": boundary_after,
         })
         content_offset += size
         current = []
         current_size = 0
 
-    for paragraph_number, unit in units:
+    for unit_index, (paragraph_number, unit) in enumerate(units):
         unit_size = content_length(unit)
         if current and current_size + unit_size > target_chars and current_size >= target_chars * 0.55:
             flush()
         current.append((paragraph_number, unit))
         current_size += unit_size
-        if current_size >= target_chars * 1.25:
+        is_last_unit_for_paragraph = (
+            unit_index == len(units) - 1 or units[unit_index + 1][0] != paragraph_number
+        )
+        if paragraph_number in boundaries and is_last_unit_for_paragraph:
+            flush(boundary_after=True)
+        elif current_size >= target_chars * 1.25:
             flush()
     flush()
 
-    if len(chunks) > 1 and content_length(chunks[-1]["text"]) < target_chars * 0.25:
+    if (
+        len(chunks) > 1
+        and content_length(chunks[-1]["text"]) < target_chars * 0.25
+        and not chunks[-2].get("_boundary_after")
+    ):
         tail = chunks.pop()
         previous = chunks[-1]
         previous["text"] += "\n\n" + tail["text"]
         previous["paragraph_end"] = tail["paragraph_end"]
         previous["content_char_end"] = tail["content_char_end"]
+        previous["_boundary_after"] = tail.get("_boundary_after", False)
+    for chunk in chunks:
+        chunk.pop("_boundary_after", None)
     return chunks
 
 
@@ -225,6 +248,8 @@ def build_manifest(paths: Sequence[Path]) -> dict:
                 "work_id": path.stem,
                 "period": "",
                 "metadata": {
+                    "sample_ids": [],
+                    "chapter_ids": [],
                     "scene_ids": [],
                     "scene_types": [],
                     "viewpoints": [],
@@ -303,7 +328,13 @@ def build_index(
             separators=(",", ":"),
         )
         preprocessing_fingerprint = hashlib.sha256(fingerprint_input.encode("utf-8")).hexdigest()
-        for number, chunk in enumerate(split_chunks(prepared, chunk_chars), 1):
+        break_after = {
+            segment["paragraph_end"]
+            for segment in source_metadata.get("segments", [])
+        }
+        for number, chunk in enumerate(
+            split_chunks(prepared, chunk_chars, break_after_paragraphs=break_after), 1
+        ):
             metrics = analyze_text(chunk["text"])
             semantic_metadata = metadata_for_chunk(
                 source_metadata,
@@ -430,6 +461,9 @@ def render_matches(records: Sequence[dict], include_text: bool = False) -> str:
         )
         semantic = []
         for field, label in (
+            ("sample_ids", "样本"),
+            ("chapter_ids", "章节"),
+            ("scene_ids", "场景编号"),
             ("scene_types", "场景"),
             ("viewpoints", "视角"),
             ("characters", "角色"),
@@ -588,19 +622,21 @@ def recommend_budget(records: Sequence[dict], scene_groups: Sequence[Sequence[di
         for field in SAMPLING_FIELDS
         if field != "scene_ids"
     }
-    if available <= 24:
+    if available <= 48:
         budget = available
     else:
         candidates = [
-            24,
-            6 * work_count,
-            math.ceil(len(groups) * 0.25),
-            2 * strata["scene_types"],
-            2 * strata["viewpoints"],
-            strata["characters"],
-            strata["relationship_states"],
-            strata["emotions"],
-            2 * strata["chapter_positions"],
+            48,
+            12 * work_count,
+            math.ceil(len(groups) * 0.5),
+            math.ceil(strata["sample_ids"] * 0.5),
+            math.ceil(strata["chapter_ids"] * 0.5),
+            3 * strata["scene_types"],
+            3 * strata["viewpoints"],
+            2 * strata["characters"],
+            2 * strata["relationship_states"],
+            2 * strata["emotions"],
+            3 * strata["chapter_positions"],
         ]
         budget = min(available, max(candidates))
     return budget, {
@@ -608,7 +644,7 @@ def recommend_budget(records: Sequence[dict], scene_groups: Sequence[Sequence[di
         "work_count": work_count,
         "scene_group_count": len(groups),
         "semantic_strata": strata,
-        "formula": "min(A, max(24, 6N, ceil(0.25G), 2T, 2V, C, R, E, 2P))",
+        "formula": "min(A, max(48, 12N, ceil(0.5G), ceil(0.5S), ceil(0.5H), 3T, 3V, 2C, 2R, 2E, 3P))",
     }
 
 
@@ -640,6 +676,8 @@ def coverage_summary(records: Sequence[dict]) -> dict:
     return {
         "chunk_count": len(records),
         "work_ids": sorted({str(record.get("work_id", "")) for record in records if record.get("work_id")}),
+        "sample_ids": unique("sample_ids"),
+        "chapter_ids": unique("chapter_ids"),
         "scene_ids": unique("scene_ids"),
         "scene_group_ids": sorted({str(record.get("scene_group_id", "")) for record in records if record.get("scene_group_id")}),
         "scene_types": unique("scene_types"),
@@ -711,12 +749,33 @@ def build_sampling_ledger(
     analysis = expand(analysis_groups)
     holdout = expand(holdout_groups)
 
+    work_chunk_counts: dict[str, int] = defaultdict(int)
+    for record in records:
+        work_chunk_counts[str(record.get("work_id") or record.get("source") or "unknown")] += 1
+    coarse_groups = []
+    for group in scene_groups:
+        summary = summarize_scene_group(group)
+        work_id = summary["work_id"]
+        coarse_limit = max(12, math.ceil(work_chunk_counts[work_id] * 0.15))
+        if len(group) > coarse_limit:
+            coarse_groups.append({
+                "scene_group_id": summary["scene_group_id"],
+                "work_id": work_id,
+                "chunk_count": len(group),
+                "limit": coarse_limit,
+                "scene_ids": summary["scene_ids"],
+                "review_status": "pending",
+                "review_note": "",
+            })
+
     def item(record: dict, role: str) -> dict:
         return {
             "chunk_id": record["chunk_id"],
             "scene_group_id": record["scene_group_id"],
             "source": record["source"],
             "work_id": record.get("work_id", record["source"]),
+            "sample_ids": record.get("sample_ids", []),
+            "chapter_ids": record.get("chapter_ids", []),
             "scene_ids": record.get("scene_ids", []),
             "scene_types": record.get("scene_types", []),
             "viewpoints": record.get("viewpoints", []),
@@ -749,6 +808,8 @@ def build_sampling_ledger(
             else "partial" if any(record.get("scene_ids") for record in records)
             else "unavailable"
         ),
+        "scene_granularity_status": "coarse" if coarse_groups else "acceptable",
+        "coarse_scene_groups": coarse_groups,
         "analysis_scene_group_count": len(analysis_groups),
         "holdout_scene_group_count": len(holdout_groups),
         "analysis_coverage": coverage_summary(analysis),
@@ -786,6 +847,25 @@ def read_ledger(path: Path) -> dict:
         raise ValueError("取样账本 budget_basis 必须是对象")
     if ledger.get("scene_grouping_status") not in {"complete", "partial", "unavailable"}:
         raise ValueError("取样账本 scene_grouping_status 不受支持")
+    if ledger.get("scene_granularity_status") not in {"acceptable", "coarse"}:
+        raise ValueError("取样账本 scene_granularity_status 不受支持")
+    coarse_groups = ledger.get("coarse_scene_groups")
+    if not isinstance(coarse_groups, list):
+        raise ValueError("取样账本 coarse_scene_groups 必须是数组")
+    pending_coarse_groups = []
+    for index, group in enumerate(coarse_groups, 1):
+        if not isinstance(group, dict):
+            raise ValueError(f"coarse_scene_groups[{index}] 必须是对象")
+        if group.get("review_status") not in {"pending", "confirmed"}:
+            raise ValueError(f"coarse_scene_groups[{index}].review_status 不受支持")
+        if group.get("review_status") == "confirmed" and not str(group.get("review_note", "")).strip():
+            raise ValueError(f"coarse_scene_groups[{index}] 确认后必须记录复核说明")
+        if group.get("review_status") == "pending":
+            pending_coarse_groups.append(group)
+    if ledger.get("scene_granularity_status") == "coarse" and not pending_coarse_groups:
+        raise ValueError("粗粒度场景状态必须存在待复核的 coarse_scene_groups")
+    if ledger.get("scene_granularity_status") == "acceptable" and pending_coarse_groups:
+        raise ValueError("可接受场景粒度不能保留待复核的 coarse_scene_groups")
     ids = []
     roles_by_group: dict[str, set[str]] = defaultdict(set)
     for index, item in enumerate(items, 1):
@@ -863,6 +943,115 @@ def mark_ledger(ledger: dict, chunk_ids: Sequence[str], status: str, note: str =
     return ledger
 
 
+def extend_ledger(
+    ledger: dict,
+    index_records: Sequence[dict],
+    chunk_ids: Sequence[str],
+    note: str = "",
+) -> dict:
+    """Add requested chunks and their complete scene groups to the analysis ledger."""
+    requested = set(chunk_ids)
+    if not requested:
+        raise ValueError("至少提供一个 chunk_id")
+    indexed_ids = {record.get("chunk_id") for record in index_records}
+    missing = sorted(requested - indexed_ids)
+    if missing:
+        raise ValueError(f"索引中不存在 chunk_id：{', '.join(missing)}")
+
+    selected_groups: list[tuple[str, list[dict]]] = []
+    for group in group_records_by_scene(index_records):
+        summary = summarize_scene_group(group)
+        if any(record.get("chunk_id") in requested for record in group):
+            selected_groups.append((summary["scene_group_id"], list(group)))
+
+    holdout_group_ids = {
+        item.get("scene_group_id")
+        for item in ledger.get("items", [])
+        if item.get("role") == "holdout"
+    }
+    blocked = sorted(group_id for group_id, _ in selected_groups if group_id in holdout_group_ids)
+    if blocked:
+        raise ValueError(f"不能把留出场景组加入分析：{', '.join(blocked)}")
+
+    existing_ids = {item.get("chunk_id") for item in ledger.get("items", [])}
+    additions = []
+    for group_id, group in selected_groups:
+        for record in group:
+            if record.get("chunk_id") in existing_ids:
+                continue
+            item = {
+                "chunk_id": record["chunk_id"],
+                "scene_group_id": group_id,
+                "source": record["source"],
+                "work_id": record.get("work_id", record["source"]),
+                "sample_ids": record.get("sample_ids", []),
+                "chapter_ids": record.get("chapter_ids", []),
+                "scene_ids": record.get("scene_ids", []),
+                "scene_types": record.get("scene_types", []),
+                "viewpoints": record.get("viewpoints", []),
+                "characters": record.get("characters", []),
+                "relationship_states": record.get("relationship_states", []),
+                "emotions": record.get("emotions", []),
+                "chapter_positions": record.get("chapter_positions", []),
+                "role": "analysis",
+                "status": "pending",
+                "paragraph_start": record["paragraph_start"],
+                "paragraph_end": record["paragraph_end"],
+                "notes": [note] if note else [],
+            }
+            additions.append(item)
+            existing_ids.add(record["chunk_id"])
+    if not additions:
+        raise ValueError("所选文本块及其场景组已在取样账本中")
+
+    analysis_items = [item for item in ledger["items"] if item.get("role") == "analysis"] + additions
+    holdout_items = [item for item in ledger["items"] if item.get("role") == "holdout"]
+    ledger["items"] = analysis_items + holdout_items
+    ledger["analysis_scene_group_count"] = len({item["scene_group_id"] for item in analysis_items})
+    ledger["analysis_coverage"] = coverage_summary(analysis_items)
+    ledger["budget_overshoot_chunks"] = max(0, len(analysis_items) - ledger["budget_effective"])
+    ledger.setdefault("updates", []).append({
+        "sequence": len(ledger.get("updates", [])) + 1,
+        "action": "extend",
+        "requested_chunk_ids": sorted(requested),
+        "added_chunk_ids": sorted(item["chunk_id"] for item in additions),
+        "note": note,
+    })
+    return ledger
+
+
+def confirm_scene_granularity(ledger: dict, scene_group_ids: Sequence[str], note: str) -> dict:
+    """Confirm that heuristic coarse groups are genuine reviewed scenes."""
+    if not note.strip():
+        raise ValueError("确认过大场景组时必须提供复核说明")
+    requested = set(scene_group_ids)
+    if not requested:
+        raise ValueError("至少提供一个 scene_group_id")
+    groups = {
+        group.get("scene_group_id"): group
+        for group in ledger.get("coarse_scene_groups", [])
+        if isinstance(group, dict) and isinstance(group.get("scene_group_id"), str)
+    }
+    missing = sorted(requested - set(groups))
+    if missing:
+        raise ValueError(f"coarse_scene_groups 中不存在场景组：{', '.join(missing)}")
+    for group_id in requested:
+        groups[group_id]["review_status"] = "confirmed"
+        groups[group_id]["review_note"] = note
+    ledger["scene_granularity_status"] = (
+        "acceptable"
+        if all(group.get("review_status") == "confirmed" for group in groups.values())
+        else "coarse"
+    )
+    ledger.setdefault("updates", []).append({
+        "sequence": len(ledger.get("updates", [])) + 1,
+        "action": "confirm_scene_granularity",
+        "scene_group_ids": sorted(requested),
+        "note": note,
+    })
+    return ledger
+
+
 def verify_ledger_index(ledger: dict, index_path: Path) -> None:
     """Reject resume updates when the ledger no longer matches the exact index."""
     read_jsonl(index_path)
@@ -892,6 +1081,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     search.add_argument("--contains", action="append", default=[])
     search.add_argument("--source")
     search.add_argument("--work-id")
+    search.add_argument("--sample-id")
+    search.add_argument("--chapter-id")
     search.add_argument("--scene-type")
     search.add_argument("--viewpoint")
     search.add_argument("--character")
@@ -917,6 +1108,20 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     mark.add_argument("--status", choices=sorted(LEDGER_STATUSES - {"holdout"}), required=True)
     mark.add_argument("--note", default="")
     mark.add_argument("--output", type=Path)
+
+    extend = subparsers.add_parser("extend", help="把补读文本块及其完整场景组加入取样账本")
+    extend.add_argument("ledger", type=Path)
+    extend.add_argument("--index", type=Path, required=True, help="核对账本绑定并读取原始索引")
+    extend.add_argument("--chunk-id", action="append", required=True)
+    extend.add_argument("--note", default="")
+    extend.add_argument("--output", type=Path)
+
+    confirm_scene = subparsers.add_parser("confirm-scene", help="确认启发式判定为过大的真实场景组")
+    confirm_scene.add_argument("ledger", type=Path)
+    confirm_scene.add_argument("--index", type=Path, required=True, help="核对账本绑定的原始索引")
+    confirm_scene.add_argument("--scene-group-id", action="append", required=True)
+    confirm_scene.add_argument("--note", required=True)
+    confirm_scene.add_argument("--output", type=Path)
     return parser.parse_args(argv)
 
 
@@ -953,6 +1158,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 query_text, _ = read_text(args.query_file)
                 query_text = prepare_text(query_text)
             filters = {
+                "sample_ids": args.sample_id,
+                "chapter_ids": args.chapter_id,
                 "scene_types": args.scene_type,
                 "viewpoints": args.viewpoint,
                 "characters": args.character,
@@ -998,10 +1205,22 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         ledger = read_ledger(args.ledger)
         verify_ledger_index(ledger, args.index)
-        updated = mark_ledger(ledger, args.chunk_id, args.status, args.note)
+        if args.command == "extend":
+            before = len(ledger["items"])
+            updated = extend_ledger(ledger, read_jsonl(args.index), args.chunk_id, args.note)
+            changed = len(updated["items"]) - before
+            unit = "个文本块"
+        elif args.command == "confirm-scene":
+            updated = confirm_scene_granularity(ledger, args.scene_group_id, args.note)
+            changed = len(args.scene_group_id)
+            unit = "个场景组"
+        else:
+            updated = mark_ledger(ledger, args.chunk_id, args.status, args.note)
+            changed = len(args.chunk_id)
+            unit = "个文本块"
         output = args.output or args.ledger
         write_json(updated, output)
-        print(f"已更新 {len(args.chunk_id)} 个文本块：{output}")
+        print(f"已更新 {changed} {unit}：{output}")
         return 0
     except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
         print(str(exc), file=sys.stderr)

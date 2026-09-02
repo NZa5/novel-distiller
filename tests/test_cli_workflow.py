@@ -45,6 +45,9 @@ class CliWorkflowTests(unittest.TestCase):
             manifest_data["sources"][0]["segments"] = [{
                 "paragraph_start": 1,
                 "paragraph_end": 160,
+                "sample_id": "S01",
+                "chapter_id": "C01",
+                "scene_id": "SC01",
                 "scene_type": "confrontation",
                 "emotion": "tension",
                 "characters": ["甲", "乙"],

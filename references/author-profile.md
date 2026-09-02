@@ -11,7 +11,7 @@
 3. `evidence-map.jsonl`：每行一条可追溯证据；
 4. `writing-packet.md`：从规范画像压缩出的提示包。
 
-四个文件必须使用相同的 `profile_id`、规则 ID、场景模式 ID 和角色语音卡 ID。完整报告负责解释，JSON 负责稳定传递，JSONL 负责证据回查，写作包负责低上下文调用。
+四个文件必须使用相同的 `profile_id`、规则 ID、场景模式 ID、场景包 ID 和角色语音卡 ID。完整报告负责解释，JSON 负责稳定传递，JSONL 负责证据回查，写作包负责低上下文调用。完整分析包还保存语料清单、索引、取样账本与 Markdown/JSON 两种表层指标。
 
 ## 1. 身份与范围
 
@@ -51,7 +51,7 @@
 |---|---|---|---|---|---|---|---|
 | R01 | 句段/场景/作品；稳定/条件/可变/不确定 | 触发条件、具体动作与节制 | 场景、角色、视角、关系、压力 | 如何运作并影响读者 | evidence_id、chunk_id、短例证 | 支持样本/作品/场景、反例、留出与区分度 | 高/中/低及依据 |
 
-每条规则必须能区分“可观察事实”“分析解释”“生成动作”。记录 `support_sample_count`、`support_work_count`、`support_scene_type_count`、`counterexample_count`、`holdout_status` 和 `distinctiveness_status`。没有用户提供的对照语料时，`distinctiveness_status` 必须是 `not_tested`，不能根据常识或外部印象声称作者独有。
+每条规则必须能区分“可观察事实”“分析解释”“生成动作”。记录 `support_sample_count`、`support_work_count`、`support_scene_type_count`、`counterexample_count`、`counterexample_search`、`holdout_status`、`holdout_evaluation` 和 `distinctiveness_status`。`counterexample_search` 必须同时列出适用样本 ID 与已检查样本 ID，使“完整搜索”可由账本复核，而不是只写一个数量。使用统计数字时通过 `metric_refs` 引用 `style-metrics.json` 中的 JSON Pointer。没有对照索引与可定位 control 证据时，`distinctiveness_status` 必须是 `not_tested`，不能根据常识或外部印象声称作者独有。
 
 可信度口径：
 
@@ -286,9 +286,15 @@
 - 因验证而降级、拆分或删除的规则：
 - 画像当前适用边界：
 
-## 18. 写作包
+每条规则的 `holdout_evaluation` 记录 `eligible`、`matched`、`missed`、`contradicted` 和 `not_applicable`。同一留出样本对同一规则只能有一个结果。`passed` 要求全部适用样本命中；有命中也有漏判或冲突时为 `partial`；没有命中且存在漏判或冲突时为 `failed`。
 
-压缩成每个场景都能重新注入的短包：
+## 18. 分析饱和与停止依据
+
+`analysis_saturation` 记录每轮新增样本、产生的新规则、新反例和仍未解决的维度。完整读完全部非留出文本时使用 `full_corpus`；否则只有连续两轮无新规则、无新反例且无未解决维度时才能使用 `saturated`。仍有缺口时使用 `limited`，列出缺失维度并降低画像层级。
+
+## 19. 写作包
+
+把分析压缩成多个按条件选择的场景包，而不是把所有规则、模式和人物声音同时激活。每个场景包包含：
 
 1. Master Voice；
 2. 当前场景需要激活的固定维度 ID；
@@ -301,16 +307,16 @@
 9. 当前最容易出现的三项漂移及纠正动作；
 10. 本场景适用的表层数据范围和负向约束。
 
-写作包应足够短，能反复使用；完整画像保留证据、条件和反例，负责在需要时回查。
+写作包顶层使用 `selector_order` 说明先按场景模式、视角、关系或其他条件选择；`shared_rule_ids` 只放真正跨场景稳定的少数规则。每个 `packet_id` 覆盖一个或一组兼容场景模式，并列出触发条件、激活规则、人物声音、证据、统计范围引用、优先级和漂移纠正。所有场景模式至少被一个包覆盖。写作包应足够短，能反复使用；完整画像保留证据、条件和反例，负责在需要时回查。
 
 ## 机器可读画像
 
 `author-profile.json` 至少包含以下顶层字段：
 
-- `schema_version`：当前为 `1.1`；
+- `schema_version`：当前为 `2.0`；
 - `profile_id`：本次画像的稳定编号；
 - `profile_scope`：`passage`、`work`、`period` 或 `author`；
-- `corpus`：`supplied_only=true`、目标标签、`work_ids`、`sample_ids`、`source_hashes`、是否提供对照语料、留出样本 ID 和预处理参数；
+- `corpus`：`supplied_only=true`、目标标签、目标作品/样本/来源哈希、对照作品/样本/来源哈希、留出样本 ID、预处理参数和清单 SHA-256；
 - `coverage`：35 个固定分析维度的逐项检查状态；
 - `master_voice`：底层叙述姿态；
 - `rules`：规范规则数组；
@@ -318,6 +324,7 @@
 - `character_voices`：角色语音和行为卡；
 - `rule_precedence`：冲突处理顺序；
 - `surface_ranges`：实际统计范围和分组；
+- `analysis_saturation`：全量阅读或连续补读饱和的可检查记录；
 - `writing_packet`：后续 AI 的紧凑控制项；
 - `limitations`：未覆盖和不确定内容。
 
@@ -337,12 +344,29 @@
   "action": "按动作、感知、判断的顺序展开",
   "limits": "内心独白场景不适用",
   "evidence_ids": ["E0001", "E0002"],
+  "metric_refs": ["/aggregate/sentence_length/median"],
   "support_sample_count": 2,
   "support_work_count": 2,
   "support_scene_type_count": 1,
   "counterexample_count": 1,
+  "counterexample_search": {
+    "status": "complete",
+    "eligible_sample_count": 8,
+    "reviewed_sample_count": 8,
+    "eligible_sample_ids": ["S01", "S02", "S03", "S04", "S05", "S06", "S07", "S08"],
+    "reviewed_sample_ids": ["S01", "S02", "S03", "S04", "S05", "S06", "S07", "S08"],
+    "notes": "已检查全部同类对峙场景"
+  },
   "holdout_status": "passed",
+  "holdout_evaluation": {
+    "eligible": 2,
+    "matched": 2,
+    "missed": 0,
+    "contradicted": 0,
+    "not_applicable": 1
+  },
   "distinctiveness_status": "not_tested",
+  "distinctiveness_evidence_ids": [],
   "confidence": "medium",
   "confidence_basis": "跨两部作品重复，但目前只覆盖对峙场景"
 }
@@ -352,39 +376,49 @@
 
 `scene_modes` 中每项必须包含 `mode_id`、`name`、非空 `triggers`、`rule_ids` 和 `evidence_ids`。`character_voices` 中每项必须包含 `voice_id`、`character_label`、非空 `conditions`、`rule_ids` 和 `evidence_ids`。所有引用都必须指向当前画像中存在的规则或证据。
 
-`writing_packet` 是机器可读画像内部的压缩控制项，至少包含：
+`writing_packet` 是机器可读画像内部的条件化控制项，至少包含：
 
 ```json
 {
   "master_voice": "与顶层 master_voice 完全一致",
-  "active_dimension_ids": ["narrator_evaluative_stance"],
-  "active_rule_ids": ["R01"],
-  "scene_mode_ids": ["M01"],
-  "character_voice_ids": ["V01"],
-  "rule_precedence": ["R01"],
-  "drift_corrections": ["先核对场景条件，再修正偏离的叙事机制"]
+  "selector_order": ["scene_mode", "viewpoint", "relationship"],
+  "shared_rule_ids": ["R01"],
+  "packets": [{
+    "packet_id": "P01",
+    "name": "对峙场景包",
+    "triggers": ["角色目标冲突"],
+    "active_dimension_ids": ["narrator_evaluative_stance"],
+    "active_rule_ids": ["R02"],
+    "scene_mode_ids": ["M01"],
+    "character_voice_ids": ["V01"],
+    "rule_precedence": ["R01", "R02"],
+    "evidence_ids": ["E0001", "E0002"],
+    "surface_range_refs": ["/aggregate/sentence_length/median"],
+    "drift_corrections": ["先核对场景条件，再修正偏离的叙事机制"]
+  }]
 }
 ```
 
-其中 `rule_precedence` 必须与顶层同名字段完全一致。`active_dimension_ids` 只能引用 35 个固定机器 ID，其他编号数组也必须引用画像中实际存在的对象；数组可以为空，`master_voice` 不得在压缩时改写成另一套结论。
+其中每个场景包的 `rule_precedence` 只能引用共享规则或当前激活规则。`active_dimension_ids` 只能引用 35 个固定机器 ID，其他编号数组也必须引用画像中实际存在的对象；`master_voice` 不得在压缩时改写成另一套结论。
 
 ## 证据 JSONL
 
 `evidence-map.jsonl` 每行是一个完整 JSON 对象，至少包含：
 
 - `schema_version`、`profile_id`、`evidence_id`、`rule_id`、`dimension`；其中 `dimension` 必须与对应规则相同，并引用固定机器 ID；
+- `corpus_role`：`target` 或 `control`；`evidence_role`：`support`、`counterexample`、`holdout` 或 `control`；
 - `sample_id`、`source_path`、`source_sha256`、`chunk_id`；
 - `work_id`、`scene_type`：用于核对跨作品和跨场景计数；
 - `paragraph_start`、`paragraph_end`、`content_char_start`、`content_char_end`；
-- `evidence_role`：`support`、`counterexample` 或 `holdout`；
+- `evaluation_outcome`：留出证据使用 `matched`、`missed`、`contradicted` 或 `not_applicable`，其他证据固定为 `not_applicable`；
 - `excerpt`：足以说明机制的短例证；
 - `observation`：例证实际做了什么；
 - `eligibility`：为什么这个样本可以支持或挑战该规则。
 
-完成后运行：
+完整交付后运行：
 
 ```bash
-python scripts/validate_profile.py work/author-profile.json --evidence work/evidence-map.jsonl --index work/corpus-index.jsonl
+python scripts/validate_bundle.py work/author-profile.json --evidence work/evidence-map.jsonl --index work/corpus-index.jsonl --manifest work/corpus-manifest.json --ledger work/sampling-ledger.json --metrics work/style-metrics.json --analysis work/author-analysis.md --packet work/writing-packet.md
 ```
 
-只有必填字段、受控值、完整子结构、计数、ID 与交叉引用、覆盖维度、留出状态、索引块编号、作品归属、来源路径、来源 SHA-256、定位范围和短摘录全部通过，才算交付完成。校验器还会重新读取原始来源并核对哈希，所以原文或索引变化后旧画像不能继续冒充当前可追溯结果。校验器不证明分析解释正确；留出检查和人工复核仍然负责语义质量。
+只有交付文件齐全，账本没有待处理或待跟进项，场景粒度合格，饱和或全量阅读成立，必填字段、受控值、计数、指标引用、ID 与交叉引用、目标/对照/留出证据、索引块编号、作品与样本归属、来源路径、来源 SHA-256、定位范围和短摘录全部通过，才算交付完成。校验器还会重新读取原始来源并核对哈希，所以原文、清单、指标或索引变化后旧画像不能继续冒充当前结果。校验器不证明分析解释正确；人工语义复核仍然不可省略。

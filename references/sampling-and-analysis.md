@@ -36,7 +36,7 @@
 python scripts/corpus_index.py manifest corpus --output work/corpus-manifest.json
 ```
 
-生成结果只是待编辑骨架。必须人工核对每个 `path` 与 `work_id`；同一部小说拆成多个章节文件时，这些文件必须使用同一个 `work_id`。可在来源级 `metadata` 或段落范围 `segments` 中记录 `scene_id`、`scene_type`、`viewpoint`、`characters`、`relationship_state`、`emotion`、`chapter_position` 和 `holdout`。不确定字段保留为空，不要把文件名推断或模型猜测写成已核实元数据。
+生成结果只是 schema v2 待编辑骨架。必须人工核对每个 `path` 与 `work_id`；同一部小说拆成多个章节文件时，这些文件必须使用同一个 `work_id`。每个可复用段落范围 `segments` 至少记录稳定的 `sample_id`、`chapter_id` 和真实 `scene_id`，再按证据补充 `scene_type`、`viewpoint`、`characters`、`relationship_state`、`emotion`、`chapter_position` 和 `holdout`。章节编号与场景编号不得混用：章内发生时间、地点、目标、视角或主要人物组合变化时，应拆成多个场景。不确定字段保留为空，不要把文件名推断或模型猜测写成已核实元数据。
 
 `segments` 的定位依据是预处理后的非空段落编号。清单、索引与分析统计必须使用相同的 `--reflow-hard-wrap` 和 `--strip-annotations` 选项；改变清单或预处理后重建索引和取样账本。
 
@@ -56,25 +56,27 @@ python scripts/corpus_index.py manifest corpus --output work/corpus-manifest.jso
 python scripts/corpus_index.py sample work/corpus-index.jsonl --output work/sampling-ledger.json --holdout-ratio 0.2 --seed 20260831
 ```
 
-工具先把同一作品中共享 `scene_id` 的文本块合并为不可拆分的场景组。自动留出、手工留出扩展和分析取样都以场景组为原子：同一场景的相邻块不能一部分参与归纳、一部分进入留出。随后按作品轮转；每轮计算场景 ID、场景类型、视角、角色、关系状态、情绪和章节位置的覆盖新颖度，优先选择当前欠覆盖的已标注取值，再用稳定哈希打破同分。每个维度独立归一，标签较多的场景组不会仅因标签数量更多而占优。相同索引、预算、比例和种子会得到相同选择。
+工具先把同一作品中共享 `scene_id` 的文本块合并为不可拆分的场景组。自动留出、手工留出扩展和分析取样都以场景组为原子：同一场景的相邻块不能一部分参与归纳、一部分进入留出。随后按作品轮转；每轮计算样本、章节、场景、视角、角色、关系、情绪和章节位置的覆盖新颖度，优先选择当前欠覆盖的已标注取值，再用稳定哈希打破同分。每个维度独立归一，标签较多的场景组不会仅因标签数量更多而占优。相同索引、预算、比例和种子会得到相同选择。
 
-没有 `scene_id` 的文本块只能各自回退为独立组，账本把 `scene_grouping_status` 标为 `partial` 或 `unavailable`；此时自动留出不能证明场景级隔离。可复用作者画像应先补齐场景边界。一个跨多个场景的文本块会把共享 ID 连成同一原子组，优先避免任何场景泄漏。
+没有 `scene_id` 的文本块只能各自回退为独立组，账本把 `scene_grouping_status` 标为 `partial` 或 `unavailable`；此时自动留出不能证明场景级隔离。索引会在清单段落边界强制断块，避免一个文本块跨越两个已标注场景。账本还会把异常大的场景组标成 `scene_granularity_status=coarse` 并列出 `coarse_scene_groups`；阶段或作者画像必须先把这类整章式标注细分后重建。
 
-省略 `--budget` 时自动计算精读目标。把 `A` 定义为留出后可用于建模的文本块数，`N` 为作品数，`G` 为场景组数，`T/V/C/R/E/P` 分别为已标注的场景类型、视角、角色、关系状态、情绪和章节位置种类数。`A<=24` 时使用 `B=A`；否则使用 `B=min(A, max(24, 6N, ceil(0.25G), 2T, 2V, C, R, E, 2P))`。这个公式不再固定封顶，会随作品和语义异质性扩大。用户仍可用 `--budget B` 设定目标；为保持完整场景，实际文本块数可能略高于目标，超出的数量记录在 `budget_overshoot_chunks`。
+省略 `--budget` 时自动计算第一轮精读目标。把 `A` 定义为留出后可用于建模的文本块数，`N/G/S/H/T/V/C/R/E/P` 分别为作品、场景组、样本、章节、场景类型、视角、角色、关系状态、情绪和章节位置种类数。`A<=48` 时使用 `B=A`；否则使用 `B=min(A, max(48, 12N, ceil(0.5G), ceil(0.5S), ceil(0.5H), 3T, 3V, 2C, 2R, 2E, 3P))`。用户仍可用 `--budget B` 设定第一轮目标；为保持完整场景，实际文本块数可能略高于目标，超出的数量记录在 `budget_overshoot_chunks`。
 
-账本保存自动建议、用户请求、有效目标、公式输入、场景组数量和实际覆盖。预算不包含留出块，可以跨会话分批完成。该算法只根据已核对清单中的离散标签平衡覆盖；若仍有缺口、冲突或新规则尚未饱和，使用语义检索定向补读并记录理由。
+账本保存自动建议、用户请求、有效目标、公式输入、场景组数量和实际覆盖。预算不包含留出块，可以跨会话分批完成。第一轮预算不是完成证明：若仍有缺口、冲突或新规则尚未饱和，继续按欠覆盖分层和规则反例定向补读，并在画像的 `analysis_saturation.rounds` 中记录新增样本、新规则、新反例和未解决维度。
 
 每次完成精读后更新账本，跨会话继续时仍使用同一索引：
 
 ```bash
+python scripts/corpus_index.py extend work/sampling-ledger.json --index work/corpus-index.jsonl --chunk-id <待补读块> --note "SAT03 定向反例搜索"
 python scripts/corpus_index.py mark work/sampling-ledger.json --index work/corpus-index.jsonl --chunk-id <chunk-id> --status analyzed --note "完成精读"
+python scripts/corpus_index.py confirm-scene work/sampling-ledger.json --index work/corpus-index.jsonl --scene-group-id <场景组> --note "逐段复核后确认为一个连续长场景"
 ```
 
-可用状态为 `pending`、`analyzed`、`skipped` 和 `needs_followup`。留出条目不能提前改成分析条目。`mark` 会核对当前索引 SHA-256；索引发生变化时必须重新生成账本，避免旧进度错配新文本。
+`extend` 会把指定块所属的完整场景组加入账本，保持场景原子性，并拒绝加入留出场景。启发式检测到的过大场景组原则上应拆分；若逐段复核确认它确实是一个连续长场景，`confirm-scene` 会保存确认状态和说明，避免合法长场景永久卡住门禁。可用状态为 `pending`、`analyzed`、`skipped` 和 `needs_followup`。留出条目不能提前改成分析条目。三个更新命令都会核对当前索引 SHA-256；索引发生变化时必须重新生成账本，避免旧进度错配新文本。
 
 长作品可以贡献更多局部观察，但不能因为文本更长就在跨作品归纳中自动获得更高权重。先分别总结每部作品，再比较作品级结论；作者级结论按作品覆盖、场景覆盖和反例解释综合判断。
 
-如果上下文不能精读全部语料，采用“全量表层统计 → 分层精读 → 根据缺口和矛盾定向补读”的顺序，并在覆盖矩阵中列出尚未处理的作品、场景、视角和角色。
+如果上下文不能精读全部语料，采用“全量表层统计 → 分层精读 → 根据缺口和矛盾定向补读”的顺序，跨会话持续更新账本。只有完整读完全部非留出语料，或连续两轮新增样本都没有产生新规则、新反例和未解决维度时，才能把饱和状态写为 `full_corpus` 或 `saturated`。其他情况写为 `limited` 并降低画像层级，不把早停包装成完成。
 
 ## 分层分析
 
@@ -126,6 +128,8 @@ python scripts/corpus_index.py mark work/sampling-ledger.json --index work/corpu
 
 ## 表层统计
 
+同一语料必须同时保存 `style-metrics.md` 和 `style-metrics.json`。JSON 报告带 schema 版本、来源绝对路径和 SHA-256；画像中的 `surface_ranges.metrics_sha256` 绑定该文件，每条使用统计数字的规则通过 `metric_refs` 引用 JSON Pointer。存在未解决引号警告时不能引用对白或引号指标，存在未重排硬换行警告时不能引用段落指标。
+
 `scripts/analyze_style.py` 读取 UTF-8、带 BOM 的 UTF-16、GB18030 和 Big5 `.txt`/`.md`，按文件输出：
 
 - 非空白字符、段落与句子数量；
@@ -147,13 +151,13 @@ python scripts/corpus_index.py mark work/sampling-ledger.json --index work/corpu
 
 ## 长篇切块与证据检索
 
-先用已核对的清单建立 schema v3 索引：
+先用已核对的清单建立 schema v4 索引：
 
 ```bash
 python scripts/corpus_index.py build corpus --manifest work/corpus-manifest.json --output work/corpus-index.jsonl --chunk-chars 1800
 ```
 
-每条 JSONL 记录保存原文、来源文件、作品编号、时期、场景/视角/角色/关系/情绪/章节位置元数据、留出标记、SHA-256、预处理参数与指纹、段落范围、内容字符范围和表层指标。`chunk_id` 同时绑定来源身份、作品、来源哈希、清单哈希、索引版本和预处理指纹；文件位置、作品归属、清单、切块尺寸或预处理变化后，旧定位不能继续当作同一证据。旧版索引不会被静默兼容，必须重建。
+每条 JSONL 记录保存原文、来源文件、作品编号、样本、章节、时期、场景/视角/角色/关系/情绪/章节位置元数据、留出标记、SHA-256、预处理参数与指纹、段落范围、内容字符范围和表层指标。`chunk_id` 同时绑定来源身份、作品、来源哈希、清单哈希、索引版本和预处理指纹；文件位置、作品归属、清单、切块尺寸或预处理变化后，旧定位不能继续当作同一证据。旧版索引不会被静默兼容，必须重建。
 
 按已有小说片段的表层节奏寻找候选样本：
 
@@ -173,6 +177,8 @@ python scripts/compare_style.py contrast --target target --control control --tar
 
 报告先计算每部作品内部所有文本块的中位数，再让每部作品以相同权重进入作者级比较。这样同一作品拆成十个章节文件也不会自动获得十倍权重。若不提供清单，工具只能把每个来源文件临时当作一部作品；仅在“一文件一作品”确实成立时才可使用该回退。它比较句段、对白、标点和功能词的中位数与四分位范围；区分度只负责排列核查顺序。差异必须回到原文解释其场景条件、机制和效果，才能进入作者画像。
 
+同时为对照语料建立独立的 schema v4 索引。目标证据使用 `corpus_role=target`，对照证据使用 `corpus_role=control` 与 `evidence_role=control`。规则只有引用了可定位的对照证据，才能把 `distinctiveness_status` 写为 `supported`、`shared` 或 `uncertain`；没有对照索引时固定为 `not_tested`。
+
 ## 证据标准
 
 重要规则至少要回答：
@@ -191,6 +197,7 @@ python scripts/compare_style.py contrast --target target --control control --tar
 - `support_work_count`：覆盖作品数；
 - `support_scene_type_count`：覆盖场景类型数；
 - `counterexample_count`：已检查到的反例数；
+- `counterexample_search`：适用样本 ID、已检查样本 ID、对应计数、完成状态和说明；已检查样本必须进入账本并标为 `analyzed`，高可信度规则必须完成全部适用样本的反例搜索；
 - `holdout_status`：`passed`、`partial`、`failed`、`not_tested` 或 `not_applicable`；
 - `distinctiveness_status`：有用户提供的对照语料时为 `supported`、`shared` 或 `uncertain`，否则固定为 `not_tested`。
 
@@ -198,7 +205,7 @@ python scripts/compare_style.py contrast --target target --control control --tar
 
 ## 留出验证
 
-语料至少包含 10 个带 `scene_id` 的可分离场景组时，在归纳最终规则之前按作品和主要场景类型预留约 20%，且不少于 2 个完整场景组，不用它们建立画像。场景不足或场景 ID 缺失时不宣称完成场景级留出，将相应 `holdout_status` 标为 `not_tested` 并降低可信度。画像完成后再检查：
+语料至少包含 10 个带 `scene_id` 的可分离场景组时，在归纳最终规则之前按作品和主要场景类型预留约 20%，且不少于 2 个完整场景组，不用它们建立画像。场景不足或场景 ID 缺失时不宣称完成场景级留出，将相应 `holdout_status` 标为 `not_tested` 并降低可信度。画像完成后，对每条规则逐一把留出样本标为 `matched`、`missed`、`contradicted` 或 `not_applicable`，并记录适用、命中、漏判、冲突和不适用的去重样本数。`passed` 只允许全部适用留出样本都命中；不能用一条正例代替完整检查。随后再检查：
 
 1. 稳定规则是否能解释留出样本中的同类选择；
 2. 场景矩阵能否把留出样本分到正确模式；

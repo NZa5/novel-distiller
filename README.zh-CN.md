@@ -42,7 +42,7 @@ Novel Distiller 把用户提供的中文小说正文和元数据转化为详细�
 | `evidence-map.jsonl` | 每行一条可追溯证据，包含来源哈希、定位、短例证和证据角色 |
 | `writing-packet.md` | 供独立写作 AI 使用的精简提示包 |
 
-画像严格区分片段、作品、阶段和作者层级。作者级结论需要主人所提供多部作品中的分离证据。
+完整分析包还保存语料清单、schema v4 索引、取样账本和 Markdown/JSON 两种表层指标。画像严格区分片段、作品、阶段和作者层级；作者级结论需要主人所提供多部作品中的分离证据。
 
 ## 30 秒开始
 
@@ -64,7 +64,7 @@ git clone https://github.com/NZa5/novel-distiller.git /path/to/skills/novel-dist
 
 ```text
 使用 novel-distiller skill 分析这些中文小说。
-建立带证据的完整作者画像，区分稳定规律、条件规律、可变特征和不确定结论，并保存四个可复用分析文件。
+建立带证据的完整作者画像，区分稳定规律、条件规律、可变特征和不确定结论，并保存可复用的完整分析包。
 ```
 
 ## 工作流程
@@ -73,19 +73,20 @@ git clone https://github.com/NZa5/novel-distiller.git /path/to/skills/novel-dist
 用户提供的小说
         │
         ├─ 语料清单与来源状态
-        ├─ 经核对的作品与场景元数据清单
+        ├─ 经核对的作品、样本、章节与真实场景清单
         ├─ 全量表层统计
         ├─ 跨作品和场景类型的确定性取样账本
         ├─ 带索引完整性核对的跨会话进度
         ├─ 多轮语义精读
-        ├─ 证据卡、反例和计数
-        ├─ 语料足够时用留出样本挑战画像
-        └─ 对完整规则账本重新评估
+        ├─ 证据卡、完整反例搜索和计数
+        ├─ 逐规则留出验证与可选对照证据
+        ├─ 全量阅读或连续补读饱和证明
+        └─ 完整分析包校验
         ▼
 author-analysis.md + author-profile.json + evidence-map.jsonl + writing-packet.md
 ```
 
-处理长篇语料时，skill 会统计全部文件，均衡精读分层样本，再针对未覆盖区域和冲突进行补读。最长作品和最早处理的批次不能在没有说明的情况下支配最终画像。
+处理长篇语料时，skill 会统计全部文件，均衡精读分层样本，再针对未覆盖区域、反例和冲突持续补读。只有完整读完非留出语料，或连续两轮补读都没有新规则、新反例和未解决维度时，才能结束分析。
 
 ## 准备语料
 
@@ -116,6 +117,7 @@ Agent 负责语义分析；脚本让预处理、统计、证据索引、用户�
 
 ```bash
 python scripts/analyze_style.py corpus/target-author --format markdown --output work/style-metrics.md
+python scripts/analyze_style.py corpus/target-author --format json --output work/style-metrics.json
 ```
 
 预处理后的每个非空行视为一个普通中文小说段落。同一行内成对的 ASCII 直双引号会和中文引号一样识别为对白。固定宽度电子书排版使用 `--reflow-hard-wrap`；正文后存在独立“注释/注釋”章节时使用 `--strip-annotations`。
@@ -126,32 +128,35 @@ python scripts/analyze_style.py corpus/target-author --format markdown --output 
 
 ```bash
 python scripts/corpus_index.py manifest corpus/target-author --output work/corpus-manifest.json
-# 核对 work_id，并在清单中补充有原文依据的场景、视角和角色元数据。
+# 核对 work_id，并为每段补充 sample_id、chapter_id、真实 scene_id 及有依据的语义元数据。
 python scripts/corpus_index.py build corpus/target-author --manifest work/corpus-manifest.json --output work/corpus-index.jsonl
 python scripts/corpus_index.py sample work/corpus-index.jsonl --output work/sampling-ledger.json --seed 20260831
+python scripts/corpus_index.py extend work/sampling-ledger.json --index work/corpus-index.jsonl --chunk-id CHUNK_ID --note "SAT03 定向补读"
 python scripts/corpus_index.py mark work/sampling-ledger.json --index work/corpus-index.jsonl --chunk-id CHUNK_ID --status analyzed
-python scripts/corpus_index.py search work/corpus-index.jsonl --scene-type confrontation --character 人物名 --exclude-holdout --top 4 --include-text
+python scripts/corpus_index.py confirm-scene work/sampling-ledger.json --index work/corpus-index.jsonl --scene-group-id SCENE_GROUP_ID --note "逐段复核后确认为一个连续长场景"
+python scripts/corpus_index.py search work/corpus-index.jsonl --sample-id 样本编号 --chapter-id 章节编号 --scene-type confrontation --character 人物名 --exclude-holdout --top 4 --include-text
 ```
 
-清单骨架必须经过核对：同一部小说拆成多个文件时应使用相同 `work_id`，没有依据的元数据保持为空。schema v3 文本块除正文、来源 SHA-256、预处理指纹和定位外，还保存作品、时期、场景、视角、角色、关系、情绪、章节位置与留出标记。共享已核对 `scene_id` 的文本块在分析集和留出集中保持为不可拆分的原子组；账本再按作品轮转并优先补齐欠覆盖的语义分层。它保存跨会话状态并绑定精确索引哈希，索引变化后不能误用旧进度。
+清单骨架必须经过核对：同一部小说拆成多个文件时应使用相同 `work_id`，每个可复用范围必须区分 `sample_id`、`chapter_id` 和真实 `scene_id`。schema v4 会在清单段落边界强制断块，避免一个文本块跨越两个已标注场景。账本会报告过大的 `coarse_scene_groups`；整章包含多个场景时必须细分后重建，确实属于单个连续长场景时则用 `confirm-scene` 保存人工复核说明。索引还保存作品、时期、视角、角色、关系、情绪、章节位置、留出标记、来源 SHA-256、预处理指纹和定位，并绑定精确索引哈希。
 
-省略 `--budget` 时，工具根据可用文本块、作品、场景组和语义分层广度自动计算精读目标。手工 `--budget B` 仍是目标而不是强制切分点，因为完整场景组不会被拆开；超出数量会写入账本。缺少场景 ID 时会明确标成分组限制，不能冒充已完成场景级隔离。
+省略 `--budget` 时，工具根据可用文本块、作品、样本、章节、场景组和语义分层广度计算第一轮精读目标。手工 `--budget B` 仍是目标而不是强制切分点，因为完整场景组不会被拆开；超出数量会写入账本。第一轮目标不是完成证明；定向补读前用 `extend` 把目标文本块及其完整场景组加入绑定账本，再按缺口和反例补读到全量或饱和。
 
 ### 3. 可选的用户自备作者对照
 
 ```bash
 python scripts/compare_style.py contrast --target corpus/target-author --control corpus/comparison-authors --target-manifest work/target-manifest.json --control-manifest work/control-manifest.json --output work/author-contrast.md
+python scripts/corpus_index.py build corpus/comparison-authors --manifest work/control-manifest.json --output work/comparison-index.jsonl
 ```
 
-报告先在每部作品内部汇总文本块，再让作品等权参与作者级比较。同一小说即使拆成很多章节文件，也不会因此获得多倍影响。没有清单时，每个文件只能临时回退为一部作品，因此仅适用于确实“一文件一作品”的语料。排列出的差异只是精读候选，不是风格相似度百分比。
+报告先在每部作品内部汇总文本块，再让作品等权参与作者级比较。同一小说即使拆成很多章节文件，也不会因此获得多倍影响。排列出的差异只是精读候选，不是风格相似度百分比。区分度结论还必须引用对照索引中的可定位 control 证据。
 
-### 4. 画像和证据校验
+### 4. 完整分析包校验
 
 ```bash
-python scripts/validate_profile.py work/author-profile.json --evidence work/evidence-map.jsonl --index work/corpus-index.jsonl
+python scripts/validate_bundle.py work/author-profile.json --evidence work/evidence-map.jsonl --index work/corpus-index.jsonl --manifest work/corpus-manifest.json --ledger work/sampling-ledger.json --metrics work/style-metrics.json --analysis work/author-analysis.md --packet work/writing-packet.md
 ```
 
-校验器强制要求全部 35 个固定分析维度，核对每条规则、证据维度和写作包引用，检查完整的场景模式与角色声音结构、受控值、计数和留出声明，并把每条证据定位与当前索引及原始小说核对。虚构路径、未知文本块、变化后的来源哈希、越界定位和原文中不存在的摘录都会失败。它仍不能证明语义解释本身正确。
+画像包含对照证据时，再追加 `--comparison-index work/comparison-index.jsonl`。完整门禁会检查交付文件、账本完成状态、场景粒度、35 个固定维度、分析饱和、反例搜索、逐规则留出结果、可选对照证据、场景包、指标 JSON Pointer、清单/指标/索引哈希，以及每条原文定位。虚构路径、未精读证据、待跟进文本块、未知 ID、失效哈希、越界定位和原文中不存在的摘录都会失败。它仍不能证明人工语义解释本身正确。
 
 ## 画像契约
 
@@ -161,9 +166,10 @@ python scripts/validate_profile.py work/author-profile.json --evidence work/evid
 2. 触发条件、可观察现象、机制、效果、写作动作和限制；
 3. 原文证据 ID、短例证、哈希和定位；
 4. 支持样本数、作品数和场景类型数；
-5. 反例数量和留出验证结果；
-6. 跨作者区分度状态；
-7. 可信度和文字形式的可信度依据。
+5. 反例搜索池、适用/已检查样本 ID、对应数量和反例数；
+6. 留出样本的适用、命中、漏判、冲突与不适用计数；
+7. 跨作者区分度状态及可定位对照证据；
+8. 可信度和文字形式的可信度依据。
 
 结论保持为**稳定**、**条件**、**可变**或**不确定**。可信度使用**高**、**中**或**低**，但没有证据依据时，单独的标签无效。
 
@@ -180,7 +186,8 @@ novel-distiller/
 │   ├── analyze_style.py
 │   ├── corpus_index.py
 │   ├── compare_style.py
-│   └── validate_profile.py
+│   ├── validate_profile.py
+│   └── validate_bundle.py
 └── tests/
 ```
 
@@ -196,7 +203,7 @@ python -X utf8 -B -m unittest discover -s tests
 
 宿主提供 Agent Skills 格式校验器时，除测试外，再用它校验仓库根目录。
 
-测试覆盖中文编码、成对与未成对的 ASCII/中文对白引号、可见的输入警告、段落识别、表层指标、防碰撞文本块 ID、语义元数据检索、可复现且可恢复的取样、作品级等权、用户自备语料对照、与原始小说绑定的画像校验，以及端到端命令行流程。
+测试覆盖中文编码、可见输入警告、段落与场景边界、表层指标来源、样本/章节/场景绑定、粗场景检测、可复现取样、作品级等权、对照证据、严格留出计数、饱和结构、场景包引用和完整分析包门禁。测试验证确定性约束，不替代人工语义复核。
 
 ## License
 

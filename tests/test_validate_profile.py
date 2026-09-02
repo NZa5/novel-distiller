@@ -23,21 +23,25 @@ INDEX = importlib.util.module_from_spec(INDEX_SPEC)
 INDEX_SPEC.loader.exec_module(INDEX)
 
 
-def valid_profile(records: list[dict]) -> dict:
+def valid_profile(records: list[dict], manifest_hash: str) -> dict:
     target_dimension = "narrator_evaluative_stance"
     return {
-        "schema_version": "1.1",
+        "schema_version": "2.0",
         "profile_id": "profile-test",
         "profile_scope": "author",
         "corpus": {
             "supplied_only": True,
             "target_label": "测试作者",
             "work_ids": ["W01", "W02"],
-            "sample_ids": ["S01", "S02", "S03"],
+            "sample_ids": ["S01", "S02"],
             "source_hashes": sorted({record["source_sha256"] for record in records}),
             "comparison_supplied": False,
+            "comparison_work_ids": [],
+            "comparison_sample_ids": [],
+            "comparison_source_hashes": [],
             "holdout_sample_ids": [],
             "preprocessing": {"reflow_hard_wrap": False, "strip_annotations": False},
+            "manifest_sha256": manifest_hash,
         },
         "coverage": [{
             "dimension": dimension,
@@ -59,12 +63,29 @@ def valid_profile(records: list[dict]) -> dict:
             "action": "先写动作再写判断",
             "limits": "内心独白不适用",
             "evidence_ids": ["E0001", "E0002", "E0003"],
+            "metric_refs": [],
             "support_sample_count": 2,
             "support_work_count": 2,
             "support_scene_type_count": 1,
             "counterexample_count": 1,
+            "counterexample_search": {
+                "status": "complete",
+                "eligible_sample_count": 2,
+                "reviewed_sample_count": 2,
+                "eligible_sample_ids": ["S01", "S02"],
+                "reviewed_sample_ids": ["S01", "S02"],
+                "notes": "已检查全部适用样本。",
+            },
             "holdout_status": "not_tested",
+            "holdout_evaluation": {
+                "eligible": 0,
+                "matched": 0,
+                "missed": 0,
+                "contradicted": 0,
+                "not_applicable": 0,
+            },
             "distinctiveness_status": "not_tested",
+            "distinctiveness_evidence_ids": [],
             "confidence": "medium",
             "confidence_basis": "跨两部作品重复，但场景覆盖有限",
         }],
@@ -83,15 +104,35 @@ def valid_profile(records: list[dict]) -> dict:
             "evidence_ids": ["E0001"],
         }],
         "rule_precedence": ["R01"],
-        "surface_ranges": {},
+        "surface_ranges": {"metrics_sha256": "a" * 64},
+        "analysis_saturation": {
+            "status": "saturated",
+            "rounds": [
+                {"round_id": "SAT01", "added_sample_ids": ["S01"], "new_rule_count": 0,
+                 "new_counterexample_count": 0, "unresolved_dimension_ids": [], "note": "补读后无新增。"},
+                {"round_id": "SAT02", "added_sample_ids": ["S02"], "new_rule_count": 0,
+                 "new_counterexample_count": 0, "unresolved_dimension_ids": [], "note": "第二轮补读后无新增。"},
+            ],
+            "unresolved_dimension_ids": [],
+            "stop_reason": "连续两轮无新增规则或反例。",
+        },
         "writing_packet": {
             "master_voice": "叙述保持有限知识边界。",
-            "active_dimension_ids": [target_dimension],
-            "active_rule_ids": ["R01"],
-            "scene_mode_ids": ["M01"],
-            "character_voice_ids": ["V01"],
-            "rule_precedence": ["R01"],
-            "drift_corrections": ["先核对场景条件，再调整句段表层"],
+            "selector_order": ["scene_mode", "viewpoint", "relationship"],
+            "shared_rule_ids": [],
+            "packets": [{
+                "packet_id": "P01",
+                "name": "对峙场景包",
+                "triggers": ["角色目标冲突"],
+                "active_dimension_ids": [target_dimension],
+                "active_rule_ids": ["R01"],
+                "scene_mode_ids": ["M01"],
+                "character_voice_ids": ["V01"],
+                "rule_precedence": ["R01"],
+                "evidence_ids": ["E0001", "E0002"],
+                "surface_range_refs": [],
+                "drift_corrections": ["先核对场景条件，再调整句段表层"],
+            }],
         },
         "limitations": ["未提供对照作者"],
     }
@@ -105,18 +146,15 @@ def build_artifacts(root: Path) -> tuple[dict, list[dict], list[dict]]:
         sources.append(source)
     manifest = root / "manifest.json"
     manifest.write_text(json.dumps({
-        "schema_version": "1.0",
+        "schema_version": "2.0",
         "sources": [{
             "path": source.name,
             "work_id": source.stem,
             "period": "",
             "metadata": {},
-            "segments": [{
-                "paragraph_start": 1,
-                "paragraph_end": 2,
-                "scene_type": "confrontation",
-            }],
-        } for source in sources],
+            "segments": [{"paragraph_start": 1, "paragraph_end": 2, "sample_id": f"S0{number}",
+                          "chapter_id": "C01", "scene_id": "SC01", "scene_type": "confrontation"}],
+        } for number, source in enumerate(sources, 1)],
     }, ensure_ascii=False), encoding="utf-8")
     records = INDEX.build_index(sources, chunk_chars=200, manifest=manifest)
     by_work = {record["work_id"]: record for record in records}
@@ -124,33 +162,23 @@ def build_artifacts(root: Path) -> tuple[dict, list[dict], list[dict]]:
     def evidence_record(evidence_id: str, sample_id: str, work_id: str, role: str, excerpt: str) -> dict:
         record = by_work[work_id]
         return {
-            "schema_version": "1.1",
-            "profile_id": "profile-test",
-            "evidence_id": evidence_id,
-            "rule_id": "R01",
-            "dimension": "narrator_evaluative_stance",
-            "sample_id": sample_id,
-            "work_id": work_id,
-            "scene_type": "confrontation",
-            "source_path": record["source_path"],
-            "source_sha256": record["source_sha256"],
-            "chunk_id": record["chunk_id"],
-            "paragraph_start": record["paragraph_start"],
-            "paragraph_end": record["paragraph_end"],
-            "content_char_start": record["content_char_start"],
-            "content_char_end": record["content_char_end"],
-            "evidence_role": role,
-            "excerpt": excerpt,
-            "observation": "动作先于判断。",
+            "schema_version": "2.0", "profile_id": "profile-test", "evidence_id": evidence_id,
+            "rule_id": "R01", "dimension": "narrator_evaluative_stance", "corpus_role": "target",
+            "sample_id": sample_id, "work_id": work_id, "scene_type": "confrontation",
+            "source_path": record["source_path"], "source_sha256": record["source_sha256"],
+            "chunk_id": record["chunk_id"], "paragraph_start": record["paragraph_start"],
+            "paragraph_end": record["paragraph_end"], "content_char_start": record["content_char_start"],
+            "content_char_end": record["content_char_end"], "evidence_role": role,
+            "evaluation_outcome": "not_applicable", "excerpt": excerpt, "observation": "动作先于判断。",
             "eligibility": "视角和场景条件匹配。",
         }
 
     evidence = [
         evidence_record("E0001", "S01", "W01", "support", "他停在门边。"),
         evidence_record("E0002", "S02", "W02", "support", "他停在门边。"),
-        evidence_record("E0003", "S03", "W02", "counterexample", "她没有回头。"),
+        evidence_record("E0003", "S02", "W02", "counterexample", "她没有回头。"),
     ]
-    return valid_profile(records), evidence, records
+    return valid_profile(records, INDEX.file_sha256(manifest)), evidence, records
 
 
 class ValidateProfileTests(unittest.TestCase):
@@ -164,7 +192,6 @@ class ValidateProfileTests(unittest.TestCase):
             profile, evidence, records = build_artifacts(Path(folder))
             profile["rules"][0]["support_work_count"] = 3
             errors = VALIDATE.validate_profile(profile, evidence[:1], records)
-
         self.assertTrue(any("不存在的证据" in error for error in errors))
         self.assertTrue(any("support_work_count" in error for error in errors))
         self.assertTrue(any("evidence_count" in error for error in errors))
@@ -176,22 +203,21 @@ class ValidateProfileTests(unittest.TestCase):
             evidence[1]["chunk_id"] = "invented-chunk"
             evidence[2]["excerpt"] = "原文中不存在的句子。"
             errors = VALIDATE.validate_profile(profile, evidence, records)
-
         self.assertTrue(any("source_path 与索引不一致" in error for error in errors))
-        self.assertTrue(any("chunk_id 不存在于索引" in error for error in errors))
+        self.assertTrue(any("chunk_id 不存在于对应索引" in error for error in errors))
         self.assertTrue(any("excerpt 不存在" in error for error in errors))
 
     def test_invalid_scene_and_packet_references_fail(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             profile, evidence, records = build_artifacts(Path(folder))
             profile["scene_modes"][0]["rule_ids"] = ["R404"]
-            profile["writing_packet"]["character_voice_ids"] = ["V404"]
-            profile["writing_packet"]["active_dimension_ids"] = ["invented_dimension"]
+            packet = profile["writing_packet"]["packets"][0]
+            packet["character_voice_ids"] = ["V404"]
+            packet["active_dimension_ids"] = ["invented_dimension"]
             errors = VALIDATE.validate_profile(profile, evidence, records)
-
         self.assertTrue(any("scene_modes[1].rule_ids" in error for error in errors))
-        self.assertTrue(any("writing_packet.character_voice_ids" in error for error in errors))
-        self.assertTrue(any("writing_packet.active_dimension_ids" in error for error in errors))
+        self.assertTrue(any("character_voice_ids" in error for error in errors))
+        self.assertTrue(any("active_dimension_ids" in error for error in errors))
 
     def test_all_canonical_dimensions_are_required_and_controlled(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
@@ -199,46 +225,108 @@ class ValidateProfileTests(unittest.TestCase):
             profile["coverage"].pop()
             profile["coverage"][0]["dimension"] = "invented_dimension"
             errors = VALIDATE.validate_profile(profile, evidence, records)
-
         self.assertTrue(any("coverage 缺少固定分析维度" in error for error in errors))
         self.assertTrue(any("invented_dimension" in error for error in errors))
 
-    def test_coverage_status_and_rule_evidence_dimension_are_enforced(self) -> None:
+    def test_saturation_and_counterexample_search_are_enforced(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             profile, evidence, records = build_artifacts(Path(folder))
-            profile["coverage"][1]["status"] = "analyzed"
-            profile["coverage"][2]["status"] = "insufficient"
-            profile["coverage"][3]["status"] = "not_applicable"
-            profile["coverage"][3]["evidence_count"] = 1
-            evidence[0]["dimension"] = "syntax_rhythm"
+            profile["analysis_saturation"]["rounds"][-1]["new_rule_count"] = 1
+            profile["rules"][0]["confidence"] = "high"
+            profile["rules"][0]["counterexample_search"]["status"] = "partial"
+            profile["rules"][0]["counterexample_search"]["reviewed_sample_count"] = 1
+            profile["rules"][0]["counterexample_search"]["reviewed_sample_ids"] = ["S01"]
             errors = VALIDATE.validate_profile(profile, evidence, records)
+        self.assertTrue(any("最后两轮" in error for error in errors))
+        self.assertTrue(any("high 可信度" in error for error in errors))
 
-        self.assertTrue(any("analyzed 时 evidence_count 必须大于 0" in error for error in errors))
-        self.assertTrue(any("insufficient 时必须说明 uncovered" in error for error in errors))
-        self.assertTrue(any("not_applicable 时 evidence_count 必须为 0" in error for error in errors))
-        self.assertTrue(any("dimension 与规则 R01 不一致" in error for error in errors))
-
-    def test_malformed_controlled_values_report_errors_instead_of_crashing(self) -> None:
+    def test_counterexample_search_ids_are_traceable_and_counted(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             profile, evidence, records = build_artifacts(Path(folder))
-            profile["profile_scope"] = []
-            profile["rules"][0]["classification"] = {"bad": True}
-            evidence[0]["evidence_role"] = ["support"]
+            search = profile["rules"][0]["counterexample_search"]
+            search["reviewed_sample_ids"] = ["S01", "S404"]
             errors = VALIDATE.validate_profile(profile, evidence, records)
+        self.assertTrue(any("reviewed_sample_ids 必须是适用样本子集" in error for error in errors))
 
-        self.assertTrue(any("profile_scope" in error for error in errors))
-        self.assertTrue(any("classification" in error for error in errors))
-        self.assertTrue(any("evidence_role" in error for error in errors))
+    def test_distinctiveness_requires_traceable_control_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            profile, evidence, records = build_artifacts(root)
+            control_source = root / "control.txt"
+            control_source.write_text("他立刻作出判断。", encoding="utf-8")
+            control_manifest = root / "control-manifest.json"
+            control_manifest.write_text(json.dumps({
+                "schema_version": "2.0",
+                "sources": [{
+                    "path": control_source.name,
+                    "work_id": "CW01",
+                    "period": "",
+                    "metadata": {},
+                    "segments": [{"paragraph_start": 1, "paragraph_end": 1, "sample_id": "CS01",
+                                  "chapter_id": "CC01", "scene_id": "CSC01", "scene_type": "confrontation"}],
+                }],
+            }, ensure_ascii=False), encoding="utf-8")
+            control_records = INDEX.build_index([control_source], chunk_chars=200, manifest=control_manifest)
+            control = control_records[0]
+            profile["corpus"].update({
+                "comparison_supplied": True,
+                "comparison_work_ids": ["CW01"],
+                "comparison_sample_ids": ["CS01"],
+                "comparison_source_hashes": [control["source_sha256"]],
+            })
+            profile["rules"][0]["distinctiveness_status"] = "supported"
+            profile["rules"][0]["distinctiveness_evidence_ids"] = ["EC01"]
+            evidence.append({
+                "schema_version": "2.0", "profile_id": "profile-test", "evidence_id": "EC01",
+                "rule_id": "R01", "dimension": "narrator_evaluative_stance", "corpus_role": "control",
+                "sample_id": "CS01", "work_id": "CW01", "scene_type": "confrontation",
+                "source_path": control["source_path"], "source_sha256": control["source_sha256"],
+                "chunk_id": control["chunk_id"], "paragraph_start": control["paragraph_start"],
+                "paragraph_end": control["paragraph_end"], "content_char_start": control["content_char_start"],
+                "content_char_end": control["content_char_end"], "evidence_role": "control",
+                "evaluation_outcome": "not_applicable", "excerpt": "他立刻作出判断。",
+                "observation": "对照文本先给判断。", "eligibility": "同类场景对照。",
+            })
+            self.assertEqual(VALIDATE.validate_profile(profile, evidence, records, control_records), [])
+            profile["rules"][0]["distinctiveness_evidence_ids"] = []
+            errors = VALIDATE.validate_profile(profile, evidence, records, control_records)
+        self.assertTrue(any("缺少对照证据" in error for error in errors))
+
+    def test_holdout_pass_requires_all_eligible_samples_to_match(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            profile, evidence, records = build_artifacts(Path(folder))
+            holdout_record = dict(records[-1])
+            holdout_record["chunk_id"] = holdout_record["chunk_id"] + "-holdout"
+            holdout_record["sample_ids"] = ["S03"]
+            holdout_record["scene_ids"] = ["SC02"]
+            records.append(holdout_record)
+            profile["corpus"]["sample_ids"].append("S03")
+            profile["corpus"]["holdout_sample_ids"] = ["S03"]
+            profile["rules"][0]["evidence_ids"].append("EH01")
+            profile["rules"][0]["holdout_status"] = "passed"
+            profile["rules"][0]["holdout_evaluation"].update({"eligible": 1, "matched": 1})
+            profile["coverage"][7]["evidence_count"] = 4
+            evidence.append({
+                **evidence[1],
+                "evidence_id": "EH01",
+                "sample_id": "S03",
+                "chunk_id": holdout_record["chunk_id"],
+                "evidence_role": "holdout",
+                "evaluation_outcome": "matched",
+            })
+            self.assertEqual(VALIDATE.validate_profile(profile, evidence, records), [])
+            evidence[-1]["evaluation_outcome"] = "contradicted"
+            errors = VALIDATE.validate_profile(profile, evidence, records)
+        self.assertTrue(any("passed 必须全部命中" in error for error in errors))
 
     def test_outside_corpus_flag_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             profile, _, records = build_artifacts(Path(folder))
             profile["corpus"]["supplied_only"] = False
             errors = VALIDATE.validate_profile(profile, index_records=records)
-
         self.assertIn("corpus.supplied_only 必须为 true", errors)
 
-    def test_cli_requires_and_validates_index(self) -> None:
+    def test_cli_validates_index(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             profile, evidence, records = build_artifacts(root)
@@ -246,16 +334,10 @@ class ValidateProfileTests(unittest.TestCase):
             evidence_path = root / "evidence-map.jsonl"
             index_path = root / "corpus-index.jsonl"
             profile_path.write_text(json.dumps(profile, ensure_ascii=False), encoding="utf-8")
-            evidence_path.write_text(
-                "\n".join(json.dumps(item, ensure_ascii=False) for item in evidence) + "\n",
-                encoding="utf-8",
-            )
+            evidence_path.write_text("\n".join(json.dumps(item, ensure_ascii=False) for item in evidence) + "\n", encoding="utf-8")
             INDEX.write_jsonl(records, index_path)
             with redirect_stdout(io.StringIO()):
-                result = VALIDATE.main([
-                    str(profile_path), "--evidence", str(evidence_path), "--index", str(index_path),
-                ])
-
+                result = VALIDATE.main([str(profile_path), "--evidence", str(evidence_path), "--index", str(index_path)])
         self.assertEqual(result, 0)
 
 

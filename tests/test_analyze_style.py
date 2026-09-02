@@ -128,6 +128,9 @@ class AnalyzeStyleTests(unittest.TestCase):
 
         rendered = json.dumps(report, ensure_ascii=False)
         self.assertIn("全部语料", rendered)
+        self.assertEqual(report["schema_version"], "1.0")
+        self.assertEqual(len(report["sources"][0]["source_sha256"]), 64)
+        self.assertTrue(Path(report["sources"][0]["source_path"]).is_absolute())
         self.assertEqual(report["aggregate"]["sentences"], 2)
 
     def test_sentence_bands_and_markdown_report(self) -> None:

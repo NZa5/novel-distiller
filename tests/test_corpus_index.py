@@ -39,7 +39,7 @@ class CorpusIndexTests(unittest.TestCase):
         self.assertEqual(len(loaded), 1)
         self.assertEqual(loaded[0]["text"], "第一段。\n\n第二段。")
         self.assertEqual(len(loaded[0]["source_sha256"]), 64)
-        self.assertEqual(loaded[0]["schema_version"], 3)
+        self.assertEqual(loaded[0]["schema_version"], 4)
         self.assertIn("preprocessing_fingerprint", loaded[0])
         self.assertIn("metrics", loaded[0])
 
@@ -77,7 +77,7 @@ class CorpusIndexTests(unittest.TestCase):
             source.write_text("他推门进去。\n\n她没有回头。", encoding="utf-8")
             manifest = root / "manifest.json"
             manifest.write_text(json.dumps({
-                "schema_version": "1.0",
+                "schema_version": "2.0",
                 "sources": [{
                     "path": "chapter-01.txt",
                     "work_id": "W01",
@@ -86,6 +86,8 @@ class CorpusIndexTests(unittest.TestCase):
                     "segments": [{
                         "paragraph_start": 1,
                         "paragraph_end": 2,
+                        "sample_id": "S01",
+                        "chapter_id": "C01",
                         "scene_id": "SC01",
                         "scene_type": "confrontation",
                         "characters": ["甲", "乙"],
@@ -98,6 +100,8 @@ class CorpusIndexTests(unittest.TestCase):
             records = INDEX.build_index([source], chunk_chars=200, manifest=manifest)
 
         self.assertEqual(records[0]["work_id"], "W01")
+        self.assertEqual(records[0]["sample_ids"], ["S01"])
+        self.assertEqual(records[0]["chapter_ids"], ["C01"])
         self.assertEqual(records[0]["scene_types"], ["confrontation"])
         matches = INDEX.search_records(
             records,
@@ -105,6 +109,66 @@ class CorpusIndexTests(unittest.TestCase):
             semantic_filters={"relationship_states": "estranged", "emotions": "tension"},
         )
         self.assertEqual([record["chunk_id"] for record in matches], [records[0]["chunk_id"]])
+
+    def test_manifest_segment_boundaries_prevent_cross_scene_chunks(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / "novel.txt"
+            source.write_text("甲" * 120 + "。\n\n" + "乙" * 120 + "。\n\n" + "丙" * 120 + "。", encoding="utf-8")
+            manifest = root / "manifest.json"
+            manifest.write_text(json.dumps({
+                "schema_version": "2.0",
+                "sources": [{
+                    "path": source.name,
+                    "work_id": "W01",
+                    "period": "",
+                    "metadata": {},
+                    "segments": [
+                        {"paragraph_start": 1, "paragraph_end": 1, "sample_id": "S01", "chapter_id": "C01", "scene_id": "SC01"},
+                        {"paragraph_start": 2, "paragraph_end": 3, "sample_id": "S02", "chapter_id": "C01", "scene_id": "SC02"},
+                    ],
+                }],
+            }, ensure_ascii=False), encoding="utf-8")
+            records = INDEX.build_index([source], chunk_chars=300, manifest=manifest)
+
+        self.assertEqual(records[0]["paragraph_end"], 1)
+        self.assertTrue(all(len(record["scene_ids"]) == 1 for record in records))
+        self.assertEqual({value for record in records for value in record["sample_ids"]}, {"S01", "S02"})
+
+    def test_coarse_scene_group_is_reported(self) -> None:
+        records = [{
+            "chunk_id": f"W01-{number:02d}",
+            "source": "W01.txt",
+            "work_id": "W01",
+            "sample_ids": ["S01"],
+            "chapter_ids": ["C01"],
+            "scene_ids": ["SC01"],
+            "scene_types": ["scene"],
+            "viewpoints": [],
+            "characters": [],
+            "relationship_states": [],
+            "emotions": [],
+            "chapter_positions": [],
+            "paragraph_start": number,
+            "paragraph_end": number,
+        } for number in range(1, 21)]
+
+        ledger = INDEX.build_sampling_ledger(records, "a" * 64, budget=20, holdout_ratio=0)
+
+        self.assertEqual(ledger["scene_granularity_status"], "coarse")
+        self.assertEqual(ledger["coarse_scene_groups"][0]["chunk_count"], 20)
+        group_id = ledger["coarse_scene_groups"][0]["scene_group_id"]
+        confirmed = INDEX.confirm_scene_granularity(
+            ledger,
+            [group_id],
+            "逐段复核后确认这是一个连续的长场景，没有时空、目标或视角切换。",
+        )
+        self.assertEqual(confirmed["scene_granularity_status"], "acceptable")
+        self.assertEqual(confirmed["coarse_scene_groups"][0]["review_status"], "confirmed")
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "ledger.json"
+            path.write_text(json.dumps(confirmed, ensure_ascii=False), encoding="utf-8")
+            self.assertEqual(INDEX.read_ledger(path)["scene_granularity_status"], "acceptable")
 
     def test_sampling_ledger_is_balanced_reproducible_and_resumable(self) -> None:
         records = []
@@ -174,12 +238,55 @@ class CorpusIndexTests(unittest.TestCase):
             for scene_id in item["scene_ids"]:
                 roles_by_scene.setdefault(scene_id, set()).add(item["role"])
 
-        self.assertEqual(ledger["schema_version"], "1.1")
+        self.assertEqual(ledger["schema_version"], "1.2")
         self.assertTrue(all(len(roles) == 1 for roles in roles_by_scene.values()))
         self.assertFalse(
             set(ledger["analysis_coverage"]["scene_group_ids"])
             & set(ledger["holdout_coverage"]["scene_group_ids"])
         )
+
+    def test_extend_ledger_adds_complete_scene_group_for_saturation_round(self) -> None:
+        records = []
+        for scene_number in range(1, 5):
+            for chunk_number in (1, 2):
+                records.append({
+                    "chunk_id": f"S{scene_number}-{chunk_number}",
+                    "source": "W01.txt",
+                    "work_id": "W01",
+                    "sample_ids": [f"SAMPLE-{scene_number}"],
+                    "chapter_ids": ["C01"],
+                    "scene_ids": [f"SCENE-{scene_number}"],
+                    "scene_types": ["dialogue"],
+                    "viewpoints": ["close-third"],
+                    "characters": ["甲"],
+                    "relationship_states": ["strained"],
+                    "emotions": ["tension"],
+                    "chapter_positions": ["middle"],
+                    "paragraph_start": scene_number * 2 + chunk_number,
+                    "paragraph_end": scene_number * 2 + chunk_number,
+                })
+        ledger = INDEX.build_sampling_ledger(records, "a" * 64, budget=2, holdout_ratio=0, seed=4)
+        existing = {item["chunk_id"] for item in ledger["items"]}
+        target_scene = next(
+            scene_number
+            for scene_number in range(1, 5)
+            if not {f"S{scene_number}-1", f"S{scene_number}-2"} & existing
+        )
+
+        updated = INDEX.extend_ledger(
+            ledger,
+            records,
+            [f"S{target_scene}-1"],
+            "SAT03 targeted counterexample search",
+        )
+        added = [item for item in updated["items"] if item["chunk_id"].startswith(f"S{target_scene}-")]
+
+        self.assertEqual({item["chunk_id"] for item in added}, {f"S{target_scene}-1", f"S{target_scene}-2"})
+        self.assertTrue(all(item["status"] == "pending" for item in added))
+        self.assertEqual(updated["analysis_scene_group_count"], 2)
+        self.assertEqual(updated["analysis_coverage"]["chunk_count"], 4)
+        self.assertEqual(updated["budget_overshoot_chunks"], 2)
+        self.assertEqual(updated["updates"][-1]["action"], "extend")
 
     def test_manual_holdout_expands_to_the_whole_scene_group(self) -> None:
         shared = [{
@@ -299,18 +406,18 @@ class CorpusIndexTests(unittest.TestCase):
 
         self.assertEqual(ledger["budget_mode"], "auto")
         self.assertIsNone(ledger["budget_requested"])
-        self.assertEqual(ledger["budget_effective"], 120)
-        self.assertEqual(ledger["budget_recommended"], 120)
-        self.assertEqual(len(ledger["items"]), 120)
+        self.assertEqual(ledger["budget_effective"], 200)
+        self.assertEqual(ledger["budget_recommended"], 200)
+        self.assertEqual(len(ledger["items"]), 200)
 
     def test_resume_rejects_changed_index(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             index_path = root / "index.jsonl"
-            index_path.write_text('{"schema_version":3}\n', encoding="utf-8")
+            index_path.write_text('{"schema_version":4}\n', encoding="utf-8")
             ledger = {"index_sha256": INDEX.file_sha256(index_path)}
             INDEX.verify_ledger_index(ledger, index_path)
-            index_path.write_text('{"schema_version":3,"changed":true}\n', encoding="utf-8")
+            index_path.write_text('{"schema_version":4,"changed":true}\n', encoding="utf-8")
 
             with self.assertRaisesRegex(ValueError, "索引内容已变化"):
                 INDEX.verify_ledger_index(ledger, index_path)
