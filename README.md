@@ -44,7 +44,9 @@ The result is a reusable analysis interface rather than a list of vague adjectiv
 | `corpus-manifest.json` | Reviewed work, sample, chapter, scene, viewpoint, character, and holdout metadata |
 | `corpus-index.jsonl` | Hash-bound chunks and source locators used by evidence records |
 | `sampling-ledger.json` | Deterministic analysis plan, progress, coverage, and scene-granularity status |
-| `style-metrics.json` | Machine-readable surface measurements, source hashes, and input warnings |
+| `style-metrics.json` + `style-metrics.md` | Matched machine/human measurements, hashes and warnings |
+
+Profile/evidence schema: **2.1**; manifest: **2.0**; index: **4**; ledger: **1.3**; metrics: **1.1**. Holdout runs also retain the separate holdout index, commitment, frozen provisional profile and reveal record.
 
 The profile distinguishes passage-, work-, period-, and author-level claims. Author-level claims require separated evidence across multiple supplied works.
 
@@ -78,7 +80,7 @@ User-supplied novels
         │
         ├─ corpus inventory and provenance
         ├─ reviewed work/sample/chapter/scene metadata manifest
-        ├─ complete surface measurement
+        ├─ non-holdout analysis-index measurement
         ├─ deterministic first-round ledger across works and real scenes
         ├─ resumable progress with an index-integrity check
         ├─ multi-pass semantic close reading
@@ -90,7 +92,7 @@ User-supplied novels
 analysis artifacts + manifest + index + ledger + metrics
 ```
 
-For long corpora, the skill measures all supplied files, close-reads a balanced first-round sample, then targets uncovered strata, contradictions, and counterexamples until the declared saturation condition is met. A complete-corpus mode is also available. The longest work and earliest batch must not silently dominate the profile.
+For long corpora, the skill measures the non-holdout analysis index, close-reads a balanced first-round sample, then targets uncovered strata, contradictions, and counterexamples until the declared saturation condition is met. A complete-corpus mode is also available. The longest work and earliest batch must not silently dominate the profile.
 
 ## Prepare the Corpus
 
@@ -119,9 +121,11 @@ The Agent performs semantic analysis. The scripts make preprocessing, measuremen
 
 ### 1. Surface metrics
 
+Build the index using the next section first. Index mode measures preprocessed analysis text without reopening full source files. Apply preprocessing options during index preparation, not again in index-mode measurement.
+
 ```bash
-python scripts/analyze_style.py corpus/target-author --format markdown --output work/style-metrics.md
-python scripts/analyze_style.py corpus/target-author --format json --output work/style-metrics.json
+python scripts/analyze_style.py --index work/corpus-index.jsonl --format markdown --output work/style-metrics.md
+python scripts/analyze_style.py --index work/corpus-index.jsonl --format json --output work/style-metrics.json
 ```
 
 Each non-empty prepared line is treated as a normal Chinese-fiction paragraph. Paired ASCII straight double quotes on one line are recognized as dialogue alongside Chinese quote styles. Add `--reflow-hard-wrap` for fixed-width eBook line wrapping and `--strip-annotations` for a separate trailing 注释/注釋 section.
@@ -133,8 +137,7 @@ If suspected fixed-width wrapping or unpaired, reversed, or cross-line quote pai
 ```bash
 python scripts/corpus_index.py manifest corpus/target-author --output work/corpus-manifest.json
 # Review work_id and add supported sample/chapter/scene/viewpoint/character metadata.
-python scripts/corpus_index.py build corpus/target-author --manifest work/corpus-manifest.json --output work/corpus-index.jsonl
-python scripts/corpus_index.py sample work/corpus-index.jsonl --output work/sampling-ledger.json --seed 20260831
+python scripts/corpus_index.py prepare corpus/target-author --manifest work/corpus-manifest.json --analysis-index work/corpus-index.jsonl --holdout-index work/holdout-index.jsonl --commitment work/holdout-commitment.json --ledger work/sampling-ledger.json --seed 20260831
 python scripts/corpus_index.py extend work/sampling-ledger.json --index work/corpus-index.jsonl --chunk-id CHUNK_ID --note "SAT03 targeted follow-up"
 python scripts/corpus_index.py mark work/sampling-ledger.json --index work/corpus-index.jsonl --chunk-id CHUNK_ID --status analyzed
 python scripts/corpus_index.py confirm-scene work/sampling-ledger.json --index work/corpus-index.jsonl --scene-group-id SCENE_GROUP_ID --note "Verified as one continuous long scene"
@@ -147,6 +150,8 @@ Omit `--budget` to derive a stronger first-round target from available chunks, w
 
 ### 3. Optional supplied-author contrast
 
+The full-source command below is for runs without sealed holdouts. Before reveal, compare target analysis-index evidence against the separate control index instead of reading full target files.
+
 ```bash
 python scripts/compare_style.py contrast --target corpus/target-author --control corpus/comparison-authors --target-manifest work/target-manifest.json --control-manifest work/control-manifest.json --output work/author-contrast.md
 python scripts/corpus_index.py build corpus/comparison-authors --manifest work/control-manifest.json --output work/comparison-index.jsonl
@@ -154,7 +159,19 @@ python scripts/corpus_index.py build corpus/comparison-authors --manifest work/c
 
 The report first summarizes chunks within each work and then gives works equal weight. Splitting one novel across many chapter files therefore does not multiply its influence. Without manifests, each file is only a fallback work, which is valid only for a true one-file-per-work corpus. Ranked differences are close-reading candidates, not a style-similarity percentage. A distinctiveness claim becomes traceable only when its control evidence resolves against the separate comparison index.
 
-### 4. Complete analysis-bundle validation
+### 4. Freeze, render and validate
+
+Before inspecting held-out text, save the provisional profile and record its hash:
+
+```text
+python scripts/corpus_index.py reveal-holdout --holdout-index work/holdout-index.jsonl --commitment work/holdout-commitment.json --provisional-profile work/provisional-profile.json --output work/holdout-reveal.json
+```
+
+Record an outcome for every holdout sample for each tested rule. Changed rules cannot retain `passed`. Render the canonical report and self-contained scene packets, adding the detailed cross-dimensional narrative:
+
+```text
+python scripts/render_profile.py work/author-profile.json --evidence work/evidence-map.jsonl --narrative work/analysis-narrative.md --analysis work/author-analysis.md --packet work/writing-packet.md
+```
 
 ```bash
 python scripts/validate_bundle.py \
@@ -164,11 +181,12 @@ python scripts/validate_bundle.py \
   --manifest work/corpus-manifest.json \
   --ledger work/sampling-ledger.json \
   --metrics work/style-metrics.json \
+  --metrics-markdown work/style-metrics.md \
   --analysis work/author-analysis.md \
   --packet work/writing-packet.md
 ```
 
-Append `--comparison-index work/comparison-index.jsonl` when the profile contains control evidence. The gate first validates the profile and evidence schemas, all 35 registered analysis dimensions, rule/evidence/packet references, scene modes, voices, controlled values, counts, strict holdout outcomes, and optional control evidence. It then verifies manifest, index, ledger, metrics, source hashes, analysis coverage, saturation status, JSON Pointer metric references, warning-sensitive claims, and Markdown identifiers as one bound bundle. Fake paths, unknown chunk IDs, changed hashes, unanalyzed evidence, out-of-range locators, absent excerpts, unresolved metric references, and stale support files fail validation. Passing these deterministic checks still does not prove that the semantic interpretation is correct.
+For holdout runs append `--holdout-index work/holdout-index.jsonl --holdout-commitment work/holdout-commitment.json --holdout-reveal work/holdout-reveal.json --provisional-profile work/provisional-profile.json`. Append `--comparison-index work/comparison-index.jsonl` when the profile contains control evidence. The gate first validates the profile and evidence schemas, all 35 registered analysis dimensions, rule/evidence/packet references, scene modes, voices, controlled values, counts, strict holdout outcomes, and optional control evidence. It then verifies manifest, index, ledger, metrics, source hashes, analysis coverage, saturation status, JSON Pointer metric references, warning-sensitive claims, and complete rendered Markdown content as one bound bundle. It rebuilds indexes from sources and recomputes measurements, requires reviewed samples and summaries for checked dimensions, binds saturation to actual ledger extensions, and limits metric claims to explained numeric leaves. A few IDs or a hash-only header are not a complete report. Fake paths, unknown chunk IDs, changed hashes, unanalyzed evidence, out-of-range locators, absent excerpts, unresolved metric references, and stale support files fail validation. Passing these deterministic checks still does not prove that the semantic interpretation is correct.
 
 ## Profile Contract
 
@@ -181,7 +199,10 @@ Every major rule records:
 5. the searched counterexample pool, eligible/reviewed sample IDs, matching counts, and notes;
 6. strict holdout eligible/matched counts and per-item outcomes;
 7. cross-author distinctiveness status and traceable control evidence when used;
-8. confidence and a written confidence basis.
+8. confidence and a written confidence basis;
+9. numeric metric references and interpretations for quantitative claims.
+
+High confidence requires passed holdouts when they exist; otherwise it requires full-corpus reading, which is not independent predictive validation. File separation documents workflow integrity, not proof that a model has never seen the source.
 
 Findings remain **stable**, **conditional**, **variable**, or **uncertain**. Confidence is **high**, **medium**, or **low**, but the label is invalid without its evidence basis.
 
@@ -198,6 +219,7 @@ novel-distiller/
 │   ├── analyze_style.py
 │   ├── corpus_index.py
 │   ├── compare_style.py
+│   ├── render_profile.py
 │   ├── validate_profile.py
 │   └── validate_bundle.py
 └── tests/
@@ -216,6 +238,8 @@ python -X utf8 -B -m unittest discover -s tests
 When the host provides an Agent Skills format validator, run it against the repository root in addition to the tests.
 
 The tests cover Chinese encodings, paired and unpaired ASCII/Chinese dialogue quotes, visible input warnings, paragraph handling, source-bound metrics, collision-resistant chunk IDs, sample/chapter/scene metadata, deterministic/resumable sampling, coarse-scene detection, work-level weighting, supplied-corpus contrast, strict holdout and control evidence, saturation rules, complete-bundle validation, and the end-to-end command-line workflow. These are deterministic contract checks, not human proof of author recognition or semantic fidelity.
+
+Repository-only [external reader evaluation](https://github.com/NZa5/novel-distiller/tree/master/evaluation) offers three-arm randomization and scoring for original, profile-guided and no-profile texts. It is excluded from the Skill ZIP. Real recognition claims require actual blinded reader data; deterministic fixtures are not such evidence.
 
 ## License
 

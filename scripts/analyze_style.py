@@ -17,7 +17,7 @@ from typing import Iterable, Sequence
 
 
 VALID_SUFFIXES = {".txt", ".md"}
-REPORT_SCHEMA_VERSION = "1.0"
+REPORT_SCHEMA_VERSION = "1.1"
 SENTENCE_SPLIT_RE = re.compile(r'(?:[。！？!?]+|…{2,})(?:[”’」』】》）"])?')
 QUOTE_PAIR_SPECS = (
     ("中文弯双引号", "“", "”", re.compile(r"“([^”\r\n]*)”")),
@@ -374,6 +374,14 @@ def source_ranges(sources: Sequence[dict]) -> dict:
     return result
 
 
+def report_sha256(report: dict) -> str:
+    payload = {key: value for key, value in report.items() if key != "report_sha256"}
+    encoded = json.dumps(
+        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def build_report(
     paths: Sequence[Path],
     reflow_hard_wrap: bool = False,
@@ -408,7 +416,12 @@ def build_report(
     if not sources:
         raise ValueError("没有可分析的文本")
 
-    aggregate = analyze_text("\n\n".join(texts), "全部语料")
+    return assemble_report(texts, sources, errors, reflow_hard_wrap, strip_annotations)
+
+
+def assemble_report(texts: list[str], sources: list[dict], errors: list[dict],
+                    reflow_hard_wrap: bool = False, strip_annotations: bool = False) -> dict:
+    aggregate = analyze_text("\n\n".join(texts), "全部分析语料")
     warnings = []
     for source in sources:
         preprocessing = source["preprocessing"]
@@ -421,8 +434,9 @@ def build_report(
                 f"{source['label']}：检测到未成对、顺序异常或跨行的引号（{'、'.join(preprocessing['quote_pair_warnings'])}）；"
                 "部分对白可能无法可靠识别，请核对引号配对和换行。"
             )
-    return {
+    report = {
         "schema_version": REPORT_SCHEMA_VERSION,
+        "input_mode": "source_files",
         "measurement": {
             "character_unit": "非空白字符；句长和段长只计算字母、数字与汉字",
             "paragraph": "预处理后的每个非空行视为一个段落；固定行宽电子书应先启用硬换行重排",
@@ -438,18 +452,59 @@ def build_report(
         "warnings": warnings,
         "errors": errors,
     }
+    report["report_sha256"] = report_sha256(report)
+    return report
+
+
+def build_report_from_index(index_path: Path) -> dict:
+    """Measure only analysis-index text; do not reopen full source documents."""
+    groups: dict[tuple[str, str], list[dict]] = {}
+    seen: set[str] = set()
+    for number, line in enumerate(index_path.read_text(encoding="utf-8-sig").splitlines(), 1):
+        if not line.strip():
+            continue
+        record = json.loads(line)
+        if not isinstance(record, dict) or not isinstance(record.get("text"), str):
+            raise ValueError(f"索引第 {number} 行缺少正文")
+        if record.get("holdout") is True:
+            raise ValueError("统计输入不能包含留出正文")
+        chunk_id = record.get("chunk_id")
+        if not isinstance(chunk_id, str) or chunk_id in seen:
+            raise ValueError("索引 chunk_id 缺失或重复")
+        seen.add(chunk_id)
+        source_path, source_hash = record.get("source_path"), record.get("source_sha256")
+        if not isinstance(source_path, str) or not isinstance(source_hash, str):
+            raise ValueError("索引缺少来源路径或哈希")
+        groups.setdefault((source_path, source_hash), []).append(record)
+    if not groups:
+        raise ValueError("没有可分析的索引文本")
+    texts, sources = [], []
+    for (source_path, source_hash), records in sorted(groups.items()):
+        records.sort(key=lambda record: record.get("content_char_start", 0))
+        text = "\n\n".join(record["text"] for record in records)
+        metrics = analyze_text(text, Path(source_path).name)
+        metrics.update(encoding="indexed-utf-8", source_path=source_path, source_sha256=source_hash)
+        sources.append(metrics)
+        texts.append(text)
+    report = assemble_report(texts, sources, [])
+    report["input_mode"] = "analysis_index"
+    report["index_sha256"] = hashlib.sha256(index_path.read_bytes()).hexdigest()
+    report["measurement"]["input"] = "仅统计分析索引中的预处理正文；排除留出场景；不跨块推断连续叙事"
+    report["report_sha256"] = report_sha256(report)
+    return report
 
 
 def render_markdown(report: dict) -> str:
     aggregate = report["aggregate"]
     lines = [
+        f"<!-- novel-distiller-metrics {json.dumps({'schema_version': report.get('schema_version'), 'report_sha256': report.get('report_sha256')}, ensure_ascii=False, sort_keys=True)} -->",
         "# 文风表层统计",
         "",
         "## 统计口径",
         "",
         *[f"- {value}" for value in report["measurement"].values()],
         "",
-        "## 全部语料",
+        "## 当前统计语料",
         "",
         "| 非空白字符 | 段落 | 句子 | 平均句长 | 中位句长 | 句长四分位 | 平均段长 | 对白内容占比 |",
         "|---:|---:|---:|---:|---:|---:|---:|---:|",
@@ -517,7 +572,8 @@ def render_markdown(report: dict) -> str:
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="统计中文小说的句段、对白和标点表层特征")
-    parser.add_argument("paths", nargs="+", help=".txt/.md 文件、目录或通配符")
+    parser.add_argument("paths", nargs="*", help=".txt/.md 文件、目录或通配符")
+    parser.add_argument("--index", type=Path, help="仅统计分析索引，禁止混入留出正文")
     parser.add_argument("--format", choices=("markdown", "json"), default="markdown")
     parser.add_argument("--output", type=Path, help="写入结果文件；省略时输出到终端")
     parser.add_argument(
@@ -535,18 +591,17 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
-    paths = resolve_inputs(args.paths)
-    if not paths:
-        print("未找到可读取的 .txt 或 .md 文件。", file=sys.stderr)
-        return 2
-
     try:
-        report = build_report(
-            paths,
-            reflow_hard_wrap=args.reflow_hard_wrap,
-            strip_annotations=args.strip_annotations,
-        )
-    except ValueError as exc:
+        if args.index:
+            if args.paths or args.reflow_hard_wrap or args.strip_annotations:
+                raise ValueError("--index 不能与来源路径或二次预处理选项同时使用")
+            report = build_report_from_index(args.index)
+        else:
+            paths = resolve_inputs(args.paths)
+            if not paths:
+                raise ValueError("未找到可读取的 .txt 或 .md 文件。")
+            report = build_report(paths, args.reflow_hard_wrap, args.strip_annotations)
+    except (OSError, UnicodeError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
         return 2
 

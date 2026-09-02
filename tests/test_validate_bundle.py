@@ -14,6 +14,7 @@ sys.path.insert(0, str(SCRIPTS))
 import analyze_style  # noqa: E402
 import corpus_index  # noqa: E402
 import validate_bundle  # noqa: E402
+import render_profile  # noqa: E402
 from test_validate_profile import build_artifacts  # noqa: E402
 
 
@@ -37,8 +38,10 @@ def bundle_artifacts(root: Path) -> tuple[dict, list[dict], list[dict], dict, di
     metrics_path = root / "style-metrics.json"
     metrics_path.write_text(json.dumps(metrics, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     profile["surface_ranges"]["metrics_sha256"] = corpus_index.file_sha256(metrics_path)
-    (root / "author-analysis.md").write_text("profile-test\n\nR01\n", encoding="utf-8")
-    (root / "writing-packet.md").write_text("profile-test\n\nP01\n", encoding="utf-8")
+    profile["analysis_saturation"]["ledger_sha256"] = corpus_index.file_sha256(ledger_path)
+    (root / "style-metrics.md").write_text(analyze_style.render_markdown(metrics), encoding="utf-8")
+    (root / "author-analysis.md").write_text(render_profile.render_analysis(profile, evidence), encoding="utf-8")
+    (root / "writing-packet.md").write_text(render_profile.render_packet(profile, evidence), encoding="utf-8")
     return profile, evidence, records, ledger, metrics
 
 
@@ -54,6 +57,7 @@ class ValidateBundleTests(unittest.TestCase):
                 root / "manifest.json",
                 root / "sampling-ledger.json",
                 root / "style-metrics.json",
+                root / "style-metrics.md",
                 root / "author-analysis.md",
                 root / "writing-packet.md",
                 root / "corpus-index.jsonl",
@@ -74,6 +78,7 @@ class ValidateBundleTests(unittest.TestCase):
                 root / "manifest.json",
                 root / "sampling-ledger.json",
                 root / "style-metrics.json",
+                root / "style-metrics.md",
                 root / "author-analysis.md",
                 root / "writing-packet.md",
                 root / "corpus-index.jsonl",
@@ -97,6 +102,7 @@ class ValidateBundleTests(unittest.TestCase):
                 root / "manifest.json",
                 root / "sampling-ledger.json",
                 metrics_path,
+                root / "style-metrics.md",
                 root / "author-analysis.md",
                 root / "writing-packet.md",
                 root / "corpus-index.jsonl",
@@ -119,6 +125,7 @@ class ValidateBundleTests(unittest.TestCase):
                 root / "manifest.json",
                 root / "sampling-ledger.json",
                 root / "style-metrics.json",
+                root / "style-metrics.md",
                 root / "author-analysis.md",
                 root / "writing-packet.md",
                 root / "corpus-index.jsonl",

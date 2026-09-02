@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 
-SCHEMA_VERSION = "2.0"
+SCHEMA_VERSION = "2.1"
 INDEX_SCHEMA_VERSION = 4
 ANALYSIS_DIMENSIONS = (
     "syntax_rhythm",
@@ -69,6 +69,7 @@ CORPUS_FIELDS = (
     "supplied_only", "target_label", "work_ids", "sample_ids", "source_hashes",
     "comparison_supplied", "comparison_work_ids", "comparison_sample_ids",
     "comparison_source_hashes", "holdout_sample_ids", "preprocessing", "manifest_sha256",
+    "provisional_profile_sha256",
 )
 PROFILE_FIELDS = (
     "schema_version", "profile_id", "profile_scope", "corpus", "coverage",
@@ -77,7 +78,7 @@ PROFILE_FIELDS = (
 )
 RULE_FIELDS = (
     "rule_id", "dimension", "level", "classification", "category", "trigger", "observable",
-    "mechanism", "effect", "action", "limits", "evidence_ids", "metric_refs",
+    "mechanism", "effect", "action", "limits", "evidence_ids", "metric_refs", "metric_claims",
     "support_sample_count", "support_work_count", "support_scene_type_count",
     "counterexample_count", "holdout_status", "distinctiveness_status",
     "counterexample_search", "holdout_evaluation", "distinctiveness_evidence_ids",
@@ -146,6 +147,25 @@ def validate_unique_string_list(
     return valid
 
 
+def validate_unique_positive_int_list(
+    value: object,
+    label: str,
+    errors: list[str],
+    allow_empty: bool = True,
+) -> list[int]:
+    if not isinstance(value, list):
+        errors.append(f"{label} 必须是数组")
+        return []
+    valid = [item for item in value if isinstance(item, int) and not isinstance(item, bool) and item > 0]
+    if len(valid) != len(value):
+        errors.append(f"{label} 必须全部是正整数")
+    if len(set(valid)) != len(valid):
+        errors.append(f"{label} 不能包含重复值")
+    if not allow_empty and not valid:
+        errors.append(f"{label} 不能为空")
+    return valid
+
+
 def read_jsonl(path: Path, label: str = "JSONL") -> list[dict]:
     records: list[dict] = []
     with path.open("r", encoding="utf-8-sig") as handle:
@@ -162,6 +182,24 @@ def read_jsonl(path: Path, label: str = "JSONL") -> list[dict]:
 
 def file_sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def canonical_json_sha256(value: object) -> str:
+    def clean(current: object) -> object:
+        if isinstance(current, dict):
+            return {
+                key: clean(item)
+                for key, item in current.items()
+                if key != "_line_number"
+            }
+        if isinstance(current, list):
+            return [clean(item) for item in current]
+        return current
+
+    payload = json.dumps(
+        clean(value), ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 def normalized_excerpt(text: str) -> str:
@@ -226,6 +264,7 @@ def validate_profile(
     evidence: Sequence[dict] | None = None,
     index_records: Sequence[dict] | None = None,
     comparison_index_records: Sequence[dict] | None = None,
+    holdout_index_records: Sequence[dict] | None = None,
 ) -> list[str]:
     errors: list[str] = []
     if not isinstance(profile, dict):
@@ -271,6 +310,11 @@ def validate_profile(
         holdout_ids = validate_unique_string_list(corpus.get("holdout_sample_ids"), "corpus.holdout_sample_ids", errors)
         if any(item not in sample_ids for item in holdout_ids):
             errors.append("corpus.holdout_sample_ids 必须是 corpus.sample_ids 的子集")
+        provisional_hash = corpus.get("provisional_profile_sha256")
+        if holdout_ids and (not isinstance(provisional_hash, str) or not re.fullmatch(r"[0-9a-f]{64}", provisional_hash)):
+            errors.append("有留出样本时必须提供解封记录中的 provisional_profile_sha256")
+        if not holdout_ids and provisional_hash is not None:
+            errors.append("无留出样本时 provisional_profile_sha256 必须为 null")
         for source_hash in source_hashes + comparison_source_hashes:
             if not re.fullmatch(r"[0-9a-fA-F]{64}", source_hash):
                 errors.append(f"corpus.source_hashes 包含无效 SHA-256：{source_hash}")
@@ -304,7 +348,15 @@ def validate_profile(
             if not isinstance(item, dict):
                 errors.append(f"{label} 必须是对象")
                 continue
-            require_fields(item, ("dimension", "status", "evidence_count", "uncovered"), label, errors)
+            require_fields(
+                item,
+                (
+                    "dimension", "status", "evidence_count", "reviewed_sample_ids",
+                    "finding_summary", "uncovered",
+                ),
+                label,
+                errors,
+            )
             dimension = item.get("dimension")
             require_nonempty_string(dimension, f"{label}.dimension", errors)
             if isinstance(dimension, str):
@@ -316,13 +368,23 @@ def validate_profile(
             if not isinstance(item.get("status"), str) or item.get("status") not in COVERAGE_STATUSES:
                 errors.append(f"{label}.status 不受支持")
             require_nonnegative_int(item.get("evidence_count"), f"{label}.evidence_count", errors)
+            reviewed_sample_ids = validate_unique_string_list(
+                item.get("reviewed_sample_ids"), f"{label}.reviewed_sample_ids", errors
+            )
+            if any(sample_id not in sample_ids or sample_id in holdout_ids for sample_id in reviewed_sample_ids):
+                errors.append(f"{label}.reviewed_sample_ids 必须来自非留出目标样本")
+            require_nonempty_string(item.get("finding_summary"), f"{label}.finding_summary", errors)
             uncovered = validate_unique_string_list(item.get("uncovered"), f"{label}.uncovered", errors)
             if item.get("status") == "analyzed" and item.get("evidence_count") == 0:
                 errors.append(f"{label} 标为 analyzed 时 evidence_count 必须大于 0")
+            if item.get("status") in {"analyzed", "no_stable_finding", "insufficient"} and not reviewed_sample_ids:
+                errors.append(f"{label} 必须列出实际审阅的样本 ID")
             if item.get("status") == "insufficient" and not uncovered:
                 errors.append(f"{label} 标为 insufficient 时必须说明 uncovered")
-            if item.get("status") == "not_applicable" and item.get("evidence_count") != 0:
-                errors.append(f"{label} 标为 not_applicable 时 evidence_count 必须为 0")
+            if item.get("status") == "not_applicable" and (
+                item.get("evidence_count") != 0 or reviewed_sample_ids
+            ):
+                errors.append(f"{label} 标为 not_applicable 时不得包含证据或审阅样本")
         missing_dimensions = [
             dimension for dimension in ANALYSIS_DIMENSIONS if dimension not in coverage_by_dimension
         ]
@@ -339,18 +401,23 @@ def validate_profile(
             errors.append("surface_ranges.metrics_sha256 必须是 64 位十六进制 SHA-256")
 
     saturation = profile["analysis_saturation"]
+    saturation_status = None
     if not isinstance(saturation, dict):
         errors.append("analysis_saturation 必须是对象")
     else:
         require_fields(
             saturation,
-            ("status", "rounds", "unresolved_dimension_ids", "stop_reason"),
+            ("status", "ledger_sha256", "rounds", "unresolved_dimension_ids", "stop_reason"),
             "analysis_saturation",
             errors,
         )
         status = saturation.get("status")
+        saturation_status = status
         if status not in SATURATION_STATUSES:
             errors.append("analysis_saturation.status 不受支持")
+        ledger_sha256 = saturation.get("ledger_sha256")
+        if not isinstance(ledger_sha256, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", ledger_sha256):
+            errors.append("analysis_saturation.ledger_sha256 必须是 64 位十六进制 SHA-256")
         unresolved = validate_unique_string_list(
             saturation.get("unresolved_dimension_ids"),
             "analysis_saturation.unresolved_dimension_ids",
@@ -366,6 +433,7 @@ def validate_profile(
             rounds = []
         normalized_rounds = []
         round_ids: set[str] = set()
+        seen_added_sample_ids: set[str] = set()
         for round_index, round_value in enumerate(rounds, 1):
             label = f"analysis_saturation.rounds[{round_index}]"
             if not isinstance(round_value, dict):
@@ -373,7 +441,10 @@ def validate_profile(
                 continue
             require_fields(
                 round_value,
-                ("round_id", "added_sample_ids", "new_rule_count", "new_counterexample_count", "unresolved_dimension_ids", "note"),
+                (
+                    "round_id", "ledger_update_sequences", "added_sample_ids", "new_rule_count",
+                    "new_counterexample_count", "unresolved_dimension_ids", "note",
+                ),
                 label,
                 errors,
             )
@@ -383,9 +454,20 @@ def validate_profile(
                 if round_id in round_ids:
                     errors.append(f"analysis_saturation.round_id 重复：{round_id}")
                 round_ids.add(round_id)
-            added = validate_unique_string_list(round_value.get("added_sample_ids"), f"{label}.added_sample_ids", errors)
-            if any(item not in sample_ids for item in added):
-                errors.append(f"{label}.added_sample_ids 必须来自 corpus.sample_ids")
+            validate_unique_positive_int_list(
+                round_value.get("ledger_update_sequences"),
+                f"{label}.ledger_update_sequences",
+                errors,
+            )
+            added = validate_unique_string_list(
+                round_value.get("added_sample_ids"), f"{label}.added_sample_ids", errors
+            )
+            if any(item not in sample_ids or item in holdout_ids for item in added):
+                errors.append(f"{label}.added_sample_ids 必须来自非留出目标样本")
+            repeated_added = sorted(set(added) & seen_added_sample_ids)
+            if repeated_added:
+                errors.append(f"{label}.added_sample_ids 不能重复早先轮次：{', '.join(repeated_added)}")
+            seen_added_sample_ids.update(added)
             require_nonnegative_int(round_value.get("new_rule_count"), f"{label}.new_rule_count", errors)
             require_nonnegative_int(
                 round_value.get("new_counterexample_count"),
@@ -406,16 +488,21 @@ def validate_profile(
                 errors.append("saturated 至少需要两轮连续无新增验证")
             for round_value in normalized_rounds[-2:]:
                 if (
-                    round_value.get("new_rule_count") != 0
+                    not round_value.get("added_sample_ids")
+                    or not round_value.get("ledger_update_sequences")
+                    or round_value.get("new_rule_count") != 0
                     or round_value.get("new_counterexample_count") != 0
                     or round_value.get("unresolved_dimension_ids")
                 ):
-                    errors.append("saturated 的最后两轮必须无新规则、无新反例且无未解决维度")
+                    errors.append("saturated 的最后两轮必须有新补读记录，且无新规则、无新反例和未解决维度")
                     break
             if unresolved:
                 errors.append("saturated 不能保留未解决维度")
         if status == "full_corpus" and unresolved:
             errors.append("full_corpus 不能保留未解决维度")
+        insufficient_dimensions = {dimension for dimension, entry in coverage_by_dimension.items() if entry.get('status') == 'insufficient'}
+        if not insufficient_dimensions.issubset(set(unresolved)):
+            errors.append('coverage 的 insufficient 维度必须列入 analysis_saturation.unresolved_dimension_ids')
         if status == "limited" and not unresolved:
             errors.append("limited 必须列出未解决维度")
         if status == "limited" and not limitations:
@@ -455,7 +542,26 @@ def validate_profile(
         for field in ("support_sample_count", "support_work_count", "support_scene_type_count", "counterexample_count"):
             require_nonnegative_int(rule.get(field), f"{label}.{field}", errors)
         validate_unique_string_list(rule.get("evidence_ids"), f"{label}.evidence_ids", errors, False)
-        validate_unique_string_list(rule.get("metric_refs"), f"{label}.metric_refs", errors)
+        metric_refs = validate_unique_string_list(rule.get("metric_refs"), f"{label}.metric_refs", errors)
+        metric_claims = rule.get("metric_claims")
+        claim_refs = []
+        if not isinstance(metric_claims, list):
+            errors.append(f"{label}.metric_claims 必须是数组")
+        else:
+            for claim_index, claim in enumerate(metric_claims, 1):
+                claim_label = f"{label}.metric_claims[{claim_index}]"
+                if not isinstance(claim, dict):
+                    errors.append(f"{claim_label} 必须是对象")
+                    continue
+                require_fields(claim, ("ref", "interpretation"), claim_label, errors)
+                require_nonempty_string(claim.get("ref"), f"{claim_label}.ref", errors)
+                require_nonempty_string(claim.get("interpretation"), f"{claim_label}.interpretation", errors)
+                if isinstance(claim.get("ref"), str) and claim["ref"].strip():
+                    claim_refs.append(claim["ref"])
+        if len(set(claim_refs)) != len(claim_refs):
+            errors.append(f"{label}.metric_claims 不能重复引用同一指标")
+        if set(claim_refs) != set(metric_refs):
+            errors.append(f"{label}.metric_claims 必须逐一解释全部 metric_refs")
         validate_unique_string_list(
             rule.get("distinctiveness_evidence_ids"),
             f"{label}.distinctiveness_evidence_ids",
@@ -555,6 +661,11 @@ def validate_profile(
                 errors.append(f"{label}.holdout_evaluation.eligible 与结果计数不一致")
         if rule.get("level") == "author" and rule.get("support_work_count", 0) < 2:
             errors.append(f"{label} 的 author 规则至少需要两部作品支持")
+        if rule.get("confidence") == "high":
+            if holdout_ids and rule.get("holdout_status") != "passed":
+                errors.append(f"{label} 的 high 可信度要求通过留出验证")
+            if not holdout_ids and saturation_status != "full_corpus":
+                errors.append(f"{label} 没有留出样本时，只有 full_corpus 才允许 high 可信度")
 
     rule_ids = set(rules_by_id)
     precedence = validate_unique_string_list(profile["rule_precedence"], "rule_precedence", errors)
@@ -631,6 +742,8 @@ def validate_profile(
             active_rules = set(shared_rule_ids) | set(validated_lists.get("active_rule_ids", []))
             if any(rule_id not in active_rules for rule_id in validated_lists.get("rule_precedence", [])):
                 errors.append(f"{label}.rule_precedence 只能引用共享或当前激活规则")
+            if not active_rules or set(validated_lists.get('rule_precedence', [])) != active_rules:
+                errors.append(f"{label}.rule_precedence 必须完整排列全部共享与激活规则")
             covered_modes.update(validated_lists.get("scene_mode_ids", []))
     missing_mode_packets = sorted(set(scene_modes) - covered_modes)
     if missing_mode_packets:
@@ -705,7 +818,22 @@ def validate_profile(
             errors.append(f"{index_name} 样本编号与画像不一致")
         return by_chunk
 
-    index_by_chunk = validate_index(index_records, "目标索引", source_hashes, work_ids, sample_ids)
+    target_records = (list(index_records) + list(holdout_index_records or [])) if index_records is not None else None
+    index_by_chunk = validate_index(target_records, "目标索引", source_hashes, work_ids, sample_ids)
+    if holdout_ids and holdout_index_records is None and index_records is not None:
+        errors.append("留出样本必须来自单独的 holdout index")
+    observed_holdout_ids = {
+        sample_id for record in holdout_index_records or [] if isinstance(record, dict)
+        for sample_id in record.get("sample_ids", []) if isinstance(sample_id, str)
+    }
+    if index_records is not None and observed_holdout_ids != set(holdout_ids):
+        errors.append("留出索引样本编号与 corpus.holdout_sample_ids 不一致")
+    for record in index_records or []:
+        if isinstance(record, dict) and (record.get("holdout") is True or set(record.get("sample_ids", [])) & set(holdout_ids)):
+            errors.append("分析索引不能包含留出正文或留出样本编号")
+    for record in holdout_index_records or []:
+        if isinstance(record, dict) and record.get("holdout") is not True:
+            errors.append("留出索引记录必须标记 holdout=true")
     comparison_index_by_chunk = validate_index(
         comparison_index_records,
         "对照索引",
@@ -793,7 +921,7 @@ def validate_profile(
             errors.append(f"{label}.source_sha256 不在对应语料来源中")
 
         current_index = comparison_index_by_chunk if is_control else index_by_chunk
-        current_index_records = comparison_index_records if is_control else index_records
+        current_index_records = comparison_index_records if is_control else target_records
         indexed = current_index.get(item.get("chunk_id"))
         if current_index_records is not None and indexed is None:
             errors.append(f"{label}.chunk_id 不存在于对应索引：{item.get('chunk_id')}")
@@ -876,6 +1004,8 @@ def validate_profile(
         observed_holdout["eligible"] = (
             observed_holdout["matched"] + observed_holdout["missed"] + observed_holdout["contradicted"]
         )
+        if holdout_status in {"passed", "partial", "failed", "not_applicable"} and set(outcome_by_sample) != set(holdout_ids):
+            errors.append(f"规则 {rule_id} 必须记录每个留出样本的适用性与结果，不能只选命中项")
         declared_holdout = rule.get("holdout_evaluation", {})
         if isinstance(declared_holdout, dict):
             for field, observed in observed_holdout.items():
@@ -934,6 +1064,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--evidence", type=Path, help="evidence-map.jsonl")
     parser.add_argument("--index", type=Path, help="corpus-index.jsonl；提供证据时必需")
     parser.add_argument("--comparison-index", type=Path, help="comparison-index.jsonl；提供对照语料时必需")
+    parser.add_argument("--holdout-index", type=Path, help="分离保存的留出索引")
     return parser.parse_args(argv)
 
 
@@ -948,7 +1079,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         comparison_index_records = (
             read_jsonl(args.comparison_index, "对照索引文件") if args.comparison_index else None
         )
-        errors = validate_profile(profile, evidence, index_records, comparison_index_records)
+        holdout_records = read_jsonl(args.holdout_index, "留出索引文件") if args.holdout_index else None
+        errors = validate_profile(profile, evidence, index_records, comparison_index_records, holdout_records)
     except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
         print(str(exc), file=sys.stderr)
         return 2

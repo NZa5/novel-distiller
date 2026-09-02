@@ -39,7 +39,7 @@
 | 宏观叙事动态 | | | | | |
 | 时期漂移与负向画像 | | | | | |
 
-人类可读矩阵概括九个分析层；机器画像必须进一步按 [analysis-dimensions.md](analysis-dimensions.md) 的固定注册表逐项声明全部 35 个维度。覆盖状态证明该项已经被检查，不要求制造稳定规律。`analyzed` 必须有证据，`insufficient` 必须列出缺失语料或条件，`not_applicable` 的证据数必须为零。
+人类可读矩阵概括九个分析层；机器画像必须按固定注册表逐项声明全部 35 个维度。每项包含 `dimension`、`status`、`evidence_count`、`reviewed_sample_ids`、`finding_summary`、`uncovered`。`analyzed` 必须有证据；`analyzed/no_stable_finding/insufficient` 必须列出实际检查、已在账本标为 analyzed 的非留出样本，不能用空审阅列表称为未发现规律。`insufficient` 必须列出缺失条件，并进入饱和记录的未解决维度；`not_applicable` 不含证据或审阅样本，在 finding_summary 中说明为什么当前语料不适用。可检查的记录不等于语义审阅已经真实充分。
 
 ## 2. Master Voice
 
@@ -55,7 +55,7 @@
 
 可信度口径：
 
-- **high**：在所声称层级上覆盖充分、分离证据一致，且没有无法解释的留出失败；
+- **high**：在所声称层级上覆盖充分、分离证据一致、反例池检查完整；有留出集时必须 passed，无留出时必须 full_corpus，且明确未做独立预测验证；
 - **medium**：规律重复出现，但只覆盖部分作品、场景或角色，条件较强，或者没有足够语料做留出；
 - **low**：样本稀少、文本噪音较大、存在冲突反例，或机制仍可能由偶然造成。
 
@@ -286,11 +286,11 @@
 - 因验证而降级、拆分或删除的规则：
 - 画像当前适用边界：
 
-每条规则的 `holdout_evaluation` 记录 `eligible`、`matched`、`missed`、`contradicted` 和 `not_applicable`。同一留出样本对同一规则只能有一个结果。`passed` 要求全部适用样本命中；有命中也有漏判或冲突时为 `partial`；没有命中且存在漏判或冲突时为 `failed`。
+每条规则的 `holdout_evaluation` 记录 `eligible`、`matched`、`missed`、`contradicted` 和 `not_applicable`。测试过的规则必须覆盖全部留出样本，不能只挑命中项；同一样本对同一规则只能有一个结果。`passed` 要求至少一个适用样本且全部命中；有命中也有漏判或冲突时为 `partial`；没有命中且存在漏判或冲突时为 `failed`。保持初稿文件不变，最终 `corpus.provisional_profile_sha256` 绑定初稿与解封记录；无留出时为 null。解封后改动触发条件、可观察现象、机制、动作、维度或限制的规则不能沿用 passed，需要新留出或降级为未验证。
 
 ## 18. 分析饱和与停止依据
 
-`analysis_saturation` 记录每轮新增样本、产生的新规则、新反例和仍未解决的维度。完整读完全部非留出文本时使用 `full_corpus`；否则只有连续两轮无新规则、无新反例且无未解决维度时才能使用 `saturated`。仍有缺口时使用 `limited`，列出缺失维度并降低画像层级。
+`analysis_saturation` 必含 `status`、`ledger_sha256`、`rounds`、`unresolved_dimension_ids` 和 `stop_reason`。ledger_sha256 是最终账本文件 SHA-256。每轮必含 `round_id`、`ledger_update_sequences`、`added_sample_ids`、`new_rule_count`、`new_counterexample_count`、`unresolved_dimension_ids`、`note`。sequence 必须指向实际 extend 更新，样本列表与更新新增样本一致且已全部精读，不能跨轮重复补同一批样本。全读非留出文本时使用 full_corpus，可用空 rounds；否则最后连续两轮均有新增样本、无新规则/反例、无未解决维度才可 saturated。语义上的新发现计数仍需诚实记录与人工核查。受限运行用 limited 并降低层级，不能交付为完整 author 画像。
 
 ## 19. 写作包
 
@@ -313,7 +313,7 @@
 
 `author-profile.json` 至少包含以下顶层字段：
 
-- `schema_version`：当前为 `2.0`；
+- `schema_version`：当前为 `2.1`，证据 JSONL 同为 `2.1`；清单仍为 `2.0`，索引为 `4`；
 - `profile_id`：本次画像的稳定编号；
 - `profile_scope`：`passage`、`work`、`period` 或 `author`；
 - `corpus`：`supplied_only=true`、目标标签、目标作品/样本/来源哈希、对照作品/样本/来源哈希、留出样本 ID、预处理参数和清单 SHA-256；
@@ -345,6 +345,7 @@
   "limits": "内心独白场景不适用",
   "evidence_ids": ["E0001", "E0002"],
   "metric_refs": ["/aggregate/sentence_length/median"],
+  "metric_claims": [{"ref": "/aggregate/sentence_length/median", "interpretation": "只作句长基线；知识边界机制仍由原文动作次序证明"}],
   "support_sample_count": 2,
   "support_work_count": 2,
   "support_scene_type_count": 1,
@@ -399,7 +400,7 @@
 }
 ```
 
-其中每个场景包的 `rule_precedence` 只能引用共享规则或当前激活规则。`active_dimension_ids` 只能引用 35 个固定机器 ID，其他编号数组也必须引用画像中实际存在的对象；`master_voice` 不得在压缩时改写成另一套结论。
+每个场景包的 `rule_precedence` 必须完整排列共享与激活规则。`active_dimension_ids` 只能引用固定机器 ID，其他编号数组也必须引用实际对象；master_voice 不得在压缩时改成另一套结论。surface_range_refs 必须由共享或激活规则的 metric_claims 解释。metric_refs 与 metric_claims.ref 集合须一致，只能指向 `/aggregate` 或 `/source_ranges` 下的数值叶节点，不能引用版本号、字符串或整个对象冒充量化依据。
 
 ## 证据 JSONL
 
@@ -415,10 +416,13 @@
 - `observation`：例证实际做了什么；
 - `eligibility`：为什么这个样本可以支持或挑战该规则。
 
-完整交付后运行：
+先保存详细的 `analysis-narrative.md`：按本模板 1–19 节中适用内容写出跨维度综合、场景对比、关系/伏笔/母题轨迹和不确定点，引用规则与证据 ID。没有材料的节说明缺口，不填假表格。再从最终画像与证据渲染标准正文和自包含场景包，附加深度分析。renderer 不会自动产生语义结论。
 
 ```bash
-python scripts/validate_bundle.py work/author-profile.json --evidence work/evidence-map.jsonl --index work/corpus-index.jsonl --manifest work/corpus-manifest.json --ledger work/sampling-ledger.json --metrics work/style-metrics.json --analysis work/author-analysis.md --packet work/writing-packet.md
+python scripts/render_profile.py work/author-profile.json --evidence work/evidence-map.jsonl --narrative work/analysis-narrative.md --analysis work/author-analysis.md --packet work/writing-packet.md
+python scripts/validate_bundle.py work/author-profile.json --evidence work/evidence-map.jsonl --index work/corpus-index.jsonl --manifest work/corpus-manifest.json --ledger work/sampling-ledger.json --metrics work/style-metrics.json --metrics-markdown work/style-metrics.md --analysis work/author-analysis.md --packet work/writing-packet.md
 ```
+
+有留出集时追加 `--holdout-index work/holdout-index.jsonl --holdout-commitment work/holdout-commitment.json --holdout-reveal work/holdout-reveal.json --provisional-profile work/provisional-profile.json`；有对照证据时追加 `--comparison-index work/comparison-index.jsonl`。Markdown 包含画像/证据哈希头与完整标准正文，只放 profile_id 和若干 ID 的占位文档不能通过。可在正文后追加解释；JSON 变化后必须重新渲染。旧 schema 不能只改版本号，须根据真实记录补齐审阅样本、指标解释、饱和绑定和留出文件。
 
 只有交付文件齐全，账本没有待处理或待跟进项，场景粒度合格，饱和或全量阅读成立，必填字段、受控值、计数、指标引用、ID 与交叉引用、目标/对照/留出证据、索引块编号、作品与样本归属、来源路径、来源 SHA-256、定位范围和短摘录全部通过，才算交付完成。校验器还会重新读取原始来源并核对哈希，所以原文、清单、指标或索引变化后旧画像不能继续冒充当前结果。校验器不证明分析解释正确；人工语义复核仍然不可省略。

@@ -238,7 +238,7 @@ class CorpusIndexTests(unittest.TestCase):
             for scene_id in item["scene_ids"]:
                 roles_by_scene.setdefault(scene_id, set()).add(item["role"])
 
-        self.assertEqual(ledger["schema_version"], "1.2")
+            self.assertEqual(ledger["schema_version"], "1.3")
         self.assertTrue(all(len(roles) == 1 for roles in roles_by_scene.values()))
         self.assertFalse(
             set(ledger["analysis_coverage"]["scene_group_ids"])

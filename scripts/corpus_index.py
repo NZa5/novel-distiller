@@ -9,6 +9,7 @@ import json
 import math
 import re
 import sys
+from datetime import datetime, timezone
 from collections import defaultdict
 from pathlib import Path
 from typing import Iterable, Sequence
@@ -25,7 +26,9 @@ from analyze_style import (
 
 SCHEMA_VERSION = 4
 MANIFEST_SCHEMA_VERSION = "2.0"
-LEDGER_SCHEMA_VERSION = "1.2"
+LEDGER_SCHEMA_VERSION = "1.3"
+HOLDOUT_COMMITMENT_SCHEMA_VERSION = "1.0"
+HOLDOUT_REVEAL_SCHEMA_VERSION = "1.0"
 SEMANTIC_FIELDS = {
     "sample_ids": "sample_id",
     "chapter_ids": "chapter_id",
@@ -794,6 +797,9 @@ def build_sampling_ledger(
         "schema_version": LEDGER_SCHEMA_VERSION,
         "index_schema_version": SCHEMA_VERSION,
         "index_sha256": index_sha256,
+        "holdout_separation": "combined",
+        "holdout_index_sha256": None,
+        "holdout_commitment_sha256": None,
         "seed": seed,
         "budget_mode": "auto" if budget is None else "manual",
         "budget_requested": budget,
@@ -816,6 +822,103 @@ def build_sampling_ledger(
         "holdout_coverage": coverage_summary(holdout),
         "items": [item(record, "analysis") for record in analysis] + [item(record, "holdout") for record in holdout],
         "updates": [],
+    }
+
+
+def prepare_separated_corpus(
+    paths: Sequence[Path],
+    manifest: Path,
+    analysis_index_path: Path,
+    holdout_index_path: Path,
+    commitment_path: Path,
+    ledger_path: Path,
+    chunk_chars: int = 1800,
+    reflow_hard_wrap: bool = False,
+    strip_annotations: bool = False,
+    budget: int | None = None,
+    holdout_ratio: float = 0.2,
+    seed: int = 20260831,
+) -> tuple[dict, dict]:
+    """Build analysis and holdout indexes without ever writing a combined index."""
+    records = build_index(
+        paths,
+        chunk_chars=chunk_chars,
+        reflow_hard_wrap=reflow_hard_wrap,
+        strip_annotations=strip_annotations,
+        manifest=manifest,
+    )
+    ledger = build_sampling_ledger(records, "0" * 64, budget, holdout_ratio, seed)
+    holdout_ids = {
+        item["chunk_id"] for item in ledger["items"] if item.get("role") == "holdout"
+    }
+    analysis_records = [record for record in records if record.get("chunk_id") not in holdout_ids]
+    holdout_records = [record for record in records if record.get("chunk_id") in holdout_ids]
+    analysis_samples = {sample for record in analysis_records for sample in record.get('sample_ids', [])}
+    holdout_samples = {sample for record in holdout_records for sample in record.get('sample_ids', [])}
+    if analysis_samples & holdout_samples:
+        raise ValueError('sample_id 跨越分析与留出场景；请在清单中按可分离场景分配独立样本编号')
+    for record in analysis_records:
+        record["holdout"] = False
+    for record in holdout_records:
+        record["holdout"] = True
+    write_jsonl(analysis_records, analysis_index_path)
+    write_jsonl(holdout_records, holdout_index_path)
+
+    manifest_hash = file_sha256(manifest)
+    holdout_index_hash = file_sha256(holdout_index_path)
+    commitment = {
+        "schema_version": HOLDOUT_COMMITMENT_SCHEMA_VERSION,
+        "index_schema_version": SCHEMA_VERSION,
+        "manifest_sha256": manifest_hash,
+        "holdout_index_sha256": holdout_index_hash,
+        "chunk_ids": sorted(holdout_ids),
+        "sample_ids": sorted({
+            sample_id
+            for record in holdout_records
+            for sample_id in record.get("sample_ids", [])
+            if isinstance(sample_id, str)
+        }),
+        "scene_ids": sorted({
+            scene_id
+            for record in holdout_records
+            for scene_id in record.get("scene_ids", [])
+            if isinstance(scene_id, str)
+        }),
+        "source_hashes": sorted({
+            record["source_sha256"] for record in holdout_records
+            if isinstance(record.get("source_sha256"), str)
+        }),
+    }
+    write_json(commitment, commitment_path)
+    ledger["index_sha256"] = file_sha256(analysis_index_path)
+    ledger["holdout_separation"] = "separate"
+    ledger["holdout_index_sha256"] = holdout_index_hash
+    ledger["holdout_commitment_sha256"] = file_sha256(commitment_path)
+    write_json(ledger, ledger_path)
+    return ledger, commitment
+
+
+def create_holdout_reveal(
+    holdout_index_path: Path,
+    commitment_path: Path,
+    provisional_profile_path: Path,
+) -> dict:
+    commitment = json.loads(commitment_path.read_text(encoding="utf-8-sig"))
+    if not isinstance(commitment, dict) or commitment.get("schema_version") != HOLDOUT_COMMITMENT_SCHEMA_VERSION:
+        raise ValueError("留出承诺文件 schema_version 不受支持")
+    holdout_hash = file_sha256(holdout_index_path)
+    if commitment.get("holdout_index_sha256") != holdout_hash:
+        raise ValueError("留出索引与承诺文件不一致")
+    read_jsonl(holdout_index_path)
+    provisional = json.loads(provisional_profile_path.read_text(encoding="utf-8-sig"))
+    if not isinstance(provisional, dict) or not provisional.get('profile_id') or not provisional.get('rules'):
+        raise ValueError('解封前必须保存含 profile_id 和非空 rules 的初稿')
+    return {
+        "schema_version": HOLDOUT_REVEAL_SCHEMA_VERSION,
+        "commitment_sha256": file_sha256(commitment_path),
+        "holdout_index_sha256": holdout_hash,
+        "provisional_profile_sha256": file_sha256(provisional_profile_path),
+        "revealed_at_utc": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -845,6 +948,16 @@ def read_ledger(path: Path) -> dict:
         raise ValueError("取样账本 budget_overshoot_chunks 必须是非负整数")
     if not isinstance(ledger.get("budget_basis"), dict):
         raise ValueError("取样账本 budget_basis 必须是对象")
+    separation = ledger.get("holdout_separation")
+    if separation not in {"combined", "separate"}:
+        raise ValueError("取样账本 holdout_separation 必须是 combined/separate")
+    for field in ("holdout_index_sha256", "holdout_commitment_sha256"):
+        value = ledger.get(field)
+        if separation == "separate":
+            if not isinstance(value, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", value):
+                raise ValueError(f"取样账本 {field} 必须是 SHA-256")
+        elif value is not None:
+            raise ValueError(f"combined 账本的 {field} 必须为 null")
     if ledger.get("scene_grouping_status") not in {"complete", "partial", "unavailable"}:
         raise ValueError("取样账本 scene_grouping_status 不受支持")
     if ledger.get("scene_granularity_status") not in {"acceptable", "coarse"}:
@@ -913,6 +1026,19 @@ def read_ledger(path: Path) -> dict:
             raise ValueError(f"取样账本 {field}.chunk_count 与 items 不一致")
     if overshoot != max(0, analysis_item_count - ledger["budget_effective"]):
         raise ValueError("取样账本 budget_overshoot_chunks 与实际分析块数不一致")
+    updates = ledger.get('updates')
+    if not isinstance(updates, list):
+        raise ValueError('取样账本 updates 必须是数组')
+    for sequence, update in enumerate(updates, 1):
+        if not isinstance(update, dict) or update.get('sequence') != sequence or isinstance(update.get('sequence'), bool):
+            raise ValueError('取样账本更新 sequence 必须从 1 开始连续且不重复')
+        if update.get('action') not in {'mark', 'extend', 'confirm_scene_granularity'}:
+            raise ValueError('取样账本更新 action 不受支持')
+        if update.get('action') == 'extend':
+            for field in ('added_chunk_ids', 'added_sample_ids'):
+                values = update.get(field)
+                if not isinstance(values, list) or any(not isinstance(value, str) or not value for value in values) or len(set(values)) != len(values):
+                    raise ValueError(f'extend 更新 {field} 必须是唯一字符串数组')
     return ledger
 
 
@@ -936,6 +1062,7 @@ def mark_ledger(ledger: dict, chunk_ids: Sequence[str], status: str, note: str =
         raise ValueError(f"取样账本中不存在 chunk_id：{', '.join(missing)}")
     ledger.setdefault("updates", []).append({
         "sequence": len(ledger.get("updates", [])) + 1,
+        "action": "mark",
         "chunk_ids": sorted(requested),
         "status": status,
         "note": note,
@@ -1015,6 +1142,12 @@ def extend_ledger(
         "action": "extend",
         "requested_chunk_ids": sorted(requested),
         "added_chunk_ids": sorted(item["chunk_id"] for item in additions),
+        "added_sample_ids": sorted({
+            sample_id
+            for item in additions
+            for sample_id in item.get("sample_ids", [])
+            if isinstance(sample_id, str)
+        }),
         "note": note,
     })
     return ledger
@@ -1075,6 +1208,26 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     build.add_argument("--reflow-hard-wrap", action="store_true")
     build.add_argument("--strip-annotations", action="store_true")
 
+    prepare = subparsers.add_parser("prepare", help="分离建立分析索引、留出索引和无正文承诺")
+    prepare.add_argument("paths", nargs="+")
+    prepare.add_argument("--manifest", type=Path, required=True)
+    prepare.add_argument("--analysis-index", type=Path, required=True)
+    prepare.add_argument("--holdout-index", type=Path, required=True)
+    prepare.add_argument("--commitment", type=Path, required=True)
+    prepare.add_argument("--ledger", type=Path, required=True)
+    prepare.add_argument("--chunk-chars", type=int, default=1800)
+    prepare.add_argument("--reflow-hard-wrap", action="store_true")
+    prepare.add_argument("--strip-annotations", action="store_true")
+    prepare.add_argument("--budget", type=int)
+    prepare.add_argument("--holdout-ratio", type=float, default=0.2)
+    prepare.add_argument("--seed", type=int, default=20260831)
+
+    reveal = subparsers.add_parser("reveal-holdout", help="记录初稿哈希后解封留出验证")
+    reveal.add_argument("--holdout-index", type=Path, required=True)
+    reveal.add_argument("--commitment", type=Path, required=True)
+    reveal.add_argument("--provisional-profile", type=Path, required=True)
+    reveal.add_argument("--output", type=Path, required=True)
+
     search = subparsers.add_parser("search", help="按文本、作品和语义元数据检索文本块")
     search.add_argument("index", type=Path)
     search.add_argument("--query-file", type=Path)
@@ -1128,6 +1281,29 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     try:
+        if args.command == "prepare":
+            paths = resolve_inputs(args.paths)
+            if not paths:
+                raise ValueError("未找到可读取的 .txt 或 .md 文件")
+            outputs = [args.analysis_index, args.holdout_index, args.commitment, args.ledger]
+            resolved = [path.resolve() for path in outputs]
+            if len(set(resolved)) != len(resolved) or set(resolved) & {path.resolve() for path in paths + [args.manifest]}:
+                raise ValueError("输出路径必须互不相同且不能覆盖输入语料或清单")
+            ledger, commitment = prepare_separated_corpus(
+                paths, args.manifest, *outputs, args.chunk_chars,
+                args.reflow_hard_wrap, args.strip_annotations,
+                args.budget, args.holdout_ratio, args.seed,
+            )
+            print(f"已分离索引；计划精读 {ledger['analysis_coverage']['chunk_count']} 块，留出 {len(commitment['chunk_ids'])} 块。")
+            return 0
+
+        if args.command == "reveal-holdout":
+            if args.output.resolve() in {path.resolve() for path in (args.holdout_index, args.commitment, args.provisional_profile)}:
+                raise ValueError("解封记录不能覆盖输入文件")
+            write_json(create_holdout_reveal(args.holdout_index, args.commitment, args.provisional_profile), args.output)
+            print(f"已记录初稿哈希并允许留出验证：{args.output}")
+            return 0
+
         if args.command == "manifest":
             paths = resolve_inputs(args.paths)
             if not paths:

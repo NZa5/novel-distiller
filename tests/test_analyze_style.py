@@ -127,8 +127,8 @@ class AnalyzeStyleTests(unittest.TestCase):
             report = STYLE.build_report([path])
 
         rendered = json.dumps(report, ensure_ascii=False)
-        self.assertIn("全部语料", rendered)
-        self.assertEqual(report["schema_version"], "1.0")
+        self.assertIn("全部分析语料", rendered)
+        self.assertEqual(report["schema_version"], "1.1")
         self.assertEqual(len(report["sources"][0]["source_sha256"]), 64)
         self.assertTrue(Path(report["sources"][0]["source_path"]).is_absolute())
         self.assertEqual(report["aggregate"]["sentences"], 2)

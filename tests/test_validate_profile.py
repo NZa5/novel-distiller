@@ -26,7 +26,7 @@ INDEX_SPEC.loader.exec_module(INDEX)
 def valid_profile(records: list[dict], manifest_hash: str) -> dict:
     target_dimension = "narrator_evaluative_stance"
     return {
-        "schema_version": "2.0",
+        "schema_version": "2.1",
         "profile_id": "profile-test",
         "profile_scope": "author",
         "corpus": {
@@ -40,6 +40,7 @@ def valid_profile(records: list[dict], manifest_hash: str) -> dict:
             "comparison_sample_ids": [],
             "comparison_source_hashes": [],
             "holdout_sample_ids": [],
+            "provisional_profile_sha256": None,
             "preprocessing": {"reflow_hard_wrap": False, "strip_annotations": False},
             "manifest_sha256": manifest_hash,
         },
@@ -47,6 +48,8 @@ def valid_profile(records: list[dict], manifest_hash: str) -> dict:
             "dimension": dimension,
             "status": "analyzed" if dimension == target_dimension else "no_stable_finding",
             "evidence_count": 3 if dimension == target_dimension else 0,
+            "reviewed_sample_ids": ["S01", "S02"],
+            "finding_summary": "动作先于判断。" if dimension == target_dimension else "两段样本已核查，未形成稳定结论。",
             "uncovered": [],
         } for dimension in VALIDATE.ANALYSIS_DIMENSIONS],
         "master_voice": "叙述保持有限知识边界。",
@@ -64,6 +67,7 @@ def valid_profile(records: list[dict], manifest_hash: str) -> dict:
             "limits": "内心独白不适用",
             "evidence_ids": ["E0001", "E0002", "E0003"],
             "metric_refs": [],
+            "metric_claims": [],
             "support_sample_count": 2,
             "support_work_count": 2,
             "support_scene_type_count": 1,
@@ -106,15 +110,11 @@ def valid_profile(records: list[dict], manifest_hash: str) -> dict:
         "rule_precedence": ["R01"],
         "surface_ranges": {"metrics_sha256": "a" * 64},
         "analysis_saturation": {
-            "status": "saturated",
-            "rounds": [
-                {"round_id": "SAT01", "added_sample_ids": ["S01"], "new_rule_count": 0,
-                 "new_counterexample_count": 0, "unresolved_dimension_ids": [], "note": "补读后无新增。"},
-                {"round_id": "SAT02", "added_sample_ids": ["S02"], "new_rule_count": 0,
-                 "new_counterexample_count": 0, "unresolved_dimension_ids": [], "note": "第二轮补读后无新增。"},
-            ],
+            "status": "full_corpus",
+            "ledger_sha256": "a" * 64,
+            "rounds": [],
             "unresolved_dimension_ids": [],
-            "stop_reason": "连续两轮无新增规则或反例。",
+            "stop_reason": "测试语料已全读。",
         },
         "writing_packet": {
             "master_voice": "叙述保持有限知识边界。",
@@ -162,7 +162,7 @@ def build_artifacts(root: Path) -> tuple[dict, list[dict], list[dict]]:
     def evidence_record(evidence_id: str, sample_id: str, work_id: str, role: str, excerpt: str) -> dict:
         record = by_work[work_id]
         return {
-            "schema_version": "2.0", "profile_id": "profile-test", "evidence_id": evidence_id,
+            "schema_version": "2.1", "profile_id": "profile-test", "evidence_id": evidence_id,
             "rule_id": "R01", "dimension": "narrator_evaluative_stance", "corpus_role": "target",
             "sample_id": sample_id, "work_id": work_id, "scene_type": "confrontation",
             "source_path": record["source_path"], "source_sha256": record["source_sha256"],
@@ -231,7 +231,12 @@ class ValidateProfileTests(unittest.TestCase):
     def test_saturation_and_counterexample_search_are_enforced(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             profile, evidence, records = build_artifacts(Path(folder))
-            profile["analysis_saturation"]["rounds"][-1]["new_rule_count"] = 1
+            profile["analysis_saturation"].update(status="saturated", rounds=[
+                {"round_id": "SAT01", "ledger_update_sequences": [1], "added_sample_ids": ["S01"], "new_rule_count": 0,
+                 "new_counterexample_count": 0, "unresolved_dimension_ids": [], "note": "补读。"},
+                {"round_id": "SAT02", "ledger_update_sequences": [2], "added_sample_ids": ["S02"], "new_rule_count": 1,
+                 "new_counterexample_count": 0, "unresolved_dimension_ids": [], "note": "补读。"},
+            ])
             profile["rules"][0]["confidence"] = "high"
             profile["rules"][0]["counterexample_search"]["status"] = "partial"
             profile["rules"][0]["counterexample_search"]["reviewed_sample_count"] = 1
@@ -277,7 +282,7 @@ class ValidateProfileTests(unittest.TestCase):
             profile["rules"][0]["distinctiveness_status"] = "supported"
             profile["rules"][0]["distinctiveness_evidence_ids"] = ["EC01"]
             evidence.append({
-                "schema_version": "2.0", "profile_id": "profile-test", "evidence_id": "EC01",
+                "schema_version": "2.1", "profile_id": "profile-test", "evidence_id": "EC01",
                 "rule_id": "R01", "dimension": "narrator_evaluative_stance", "corpus_role": "control",
                 "sample_id": "CS01", "work_id": "CW01", "scene_type": "confrontation",
                 "source_path": control["source_path"], "source_sha256": control["source_sha256"],
@@ -299,9 +304,10 @@ class ValidateProfileTests(unittest.TestCase):
             holdout_record["chunk_id"] = holdout_record["chunk_id"] + "-holdout"
             holdout_record["sample_ids"] = ["S03"]
             holdout_record["scene_ids"] = ["SC02"]
-            records.append(holdout_record)
+            holdout_record["holdout"] = True
             profile["corpus"]["sample_ids"].append("S03")
             profile["corpus"]["holdout_sample_ids"] = ["S03"]
+            profile["corpus"]["provisional_profile_sha256"] = "b" * 64
             profile["rules"][0]["evidence_ids"].append("EH01")
             profile["rules"][0]["holdout_status"] = "passed"
             profile["rules"][0]["holdout_evaluation"].update({"eligible": 1, "matched": 1})
@@ -314,9 +320,9 @@ class ValidateProfileTests(unittest.TestCase):
                 "evidence_role": "holdout",
                 "evaluation_outcome": "matched",
             })
-            self.assertEqual(VALIDATE.validate_profile(profile, evidence, records), [])
+            self.assertEqual(VALIDATE.validate_profile(profile, evidence, records, holdout_index_records=[holdout_record]), [])
             evidence[-1]["evaluation_outcome"] = "contradicted"
-            errors = VALIDATE.validate_profile(profile, evidence, records)
+            errors = VALIDATE.validate_profile(profile, evidence, records, holdout_index_records=[holdout_record])
         self.assertTrue(any("passed 必须全部命中" in error for error in errors))
 
     def test_outside_corpus_flag_is_rejected(self) -> None:

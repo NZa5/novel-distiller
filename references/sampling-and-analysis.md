@@ -38,11 +38,11 @@ python scripts/corpus_index.py manifest corpus --output work/corpus-manifest.jso
 
 生成结果只是 schema v2 待编辑骨架。必须人工核对每个 `path` 与 `work_id`；同一部小说拆成多个章节文件时，这些文件必须使用同一个 `work_id`。每个可复用段落范围 `segments` 至少记录稳定的 `sample_id`、`chapter_id` 和真实 `scene_id`，再按证据补充 `scene_type`、`viewpoint`、`characters`、`relationship_state`、`emotion`、`chapter_position` 和 `holdout`。章节编号与场景编号不得混用：章内发生时间、地点、目标、视角或主要人物组合变化时，应拆成多个场景。不确定字段保留为空，不要把文件名推断或模型猜测写成已核实元数据。
 
-`segments` 的定位依据是预处理后的非空段落编号。清单、索引与分析统计必须使用相同的 `--reflow-hard-wrap` 和 `--strip-annotations` 选项；改变清单或预处理后重建索引和取样账本。
+`segments` 的定位依据是预处理后的非空段落编号。清单段落与索引必须使用一致的预处理口径；需要时在建索引使用 `--reflow-hard-wrap` 和 `--strip-annotations`，之后用 --index 统计已预处理正文；改变清单或预处理后重建索引和取样账本。
 
 ## 可复现的分层取样
 
-先对全部文件建立清单和表层统计，再决定需要精读的语义样本。精读样本必须覆盖：
+先建立清单并分离留出集，仅对分析索引正文做统计，再决定精读样本。不要在封存前把完整来源正文载入分析上下文。精读样本必须覆盖：
 
 - 每一部作品，而不是按总文本块混在一起抽取；
 - 开篇、中段、高潮前后和结尾等不同章节位置；
@@ -53,8 +53,10 @@ python scripts/corpus_index.py manifest corpus --output work/corpus-manifest.jso
 使用工具生成持久取样账本：
 
 ```bash
-python scripts/corpus_index.py sample work/corpus-index.jsonl --output work/sampling-ledger.json --holdout-ratio 0.2 --seed 20260831
+python scripts/corpus_index.py prepare corpus --manifest work/corpus-manifest.json --analysis-index work/corpus-index.jsonl --holdout-index work/holdout-index.jsonl --commitment work/holdout-commitment.json --ledger work/sampling-ledger.json --holdout-ratio 0.2 --seed 20260831
 ```
+
+prepare 直接生成分离的分析与留出索引，不落盘合并正文。承诺文件只有块/样本/场景 ID 与哈希，没有留出正文。账本 1.3 绑定两个索引和承诺；补读只检索分析索引。sample_id 不能跨分析与留出组，否则先修正清单。无留出的小语料也可用 build 加 `sample --holdout-ratio 0`，不能把 combined 索引当独立留出证明。
 
 工具先把同一作品中共享 `scene_id` 的文本块合并为不可拆分的场景组。自动留出、手工留出扩展和分析取样都以场景组为原子：同一场景的相邻块不能一部分参与归纳、一部分进入留出。随后按作品轮转；每轮计算样本、章节、场景、视角、角色、关系、情绪和章节位置的覆盖新颖度，优先选择当前欠覆盖的已标注取值，再用稳定哈希打破同分。每个维度独立归一，标签较多的场景组不会仅因标签数量更多而占优。相同索引、预算、比例和种子会得到相同选择。
 
@@ -76,7 +78,7 @@ python scripts/corpus_index.py confirm-scene work/sampling-ledger.json --index w
 
 长作品可以贡献更多局部观察，但不能因为文本更长就在跨作品归纳中自动获得更高权重。先分别总结每部作品，再比较作品级结论；作者级结论按作品覆盖、场景覆盖和反例解释综合判断。
 
-如果上下文不能精读全部语料，采用“全量表层统计 → 分层精读 → 根据缺口和矛盾定向补读”的顺序，跨会话持续更新账本。只有完整读完全部非留出语料，或连续两轮新增样本都没有产生新规则、新反例和未解决维度时，才能把饱和状态写为 `full_corpus` 或 `saturated`。其他情况写为 `limited` 并降低画像层级，不把早停包装成完成。
+如果上下文不能精读全部语料，采用“非留出分析索引统计 → 分层精读 → 根据缺口和矛盾定向补读”的顺序，跨会话持续更新账本。只有完整读完全部非留出语料，或连续两轮新增样本都没有产生新规则、新反例和未解决维度时，才能把饱和状态写为 `full_corpus` 或 `saturated`。其他情况写为 `limited` 并降低画像层级，不把早停包装成完成。
 
 ## 分层分析
 
@@ -128,7 +130,7 @@ python scripts/corpus_index.py confirm-scene work/sampling-ledger.json --index w
 
 ## 表层统计
 
-同一语料必须同时保存 `style-metrics.md` 和 `style-metrics.json`。JSON 报告带 schema 版本、来源绝对路径和 SHA-256；画像中的 `surface_ranges.metrics_sha256` 绑定该文件，每条使用统计数字的规则通过 `metric_refs` 引用 JSON Pointer。存在未解决引号警告时不能引用对白或引号指标，存在未重排硬换行警告时不能引用段落指标。
+同时保存 style-metrics.md 和 style-metrics.json。推荐从分析索引统计，有留出时强制如此：`python scripts/analyze_style.py --index work/corpus-index.jsonl --format json --output work/style-metrics.json`，再用 `--format markdown` 保存 Markdown。索引已经预处理，不可再次加预处理开关。指标 schema 1.1 含分析索引哈希、来源哈希、内容摘要；Markdown 含同一摘要和完整统计正文。surface_ranges.metrics_sha256 绑定 JSON 文件；metric_refs 指向数值，metric_claims 解释用途。引号警告未解决不能引用对白/引号指标，硬换行未解决不能引用段落指标。完整门禁重算统计，不只检查填写的哈希。
 
 `scripts/analyze_style.py` 读取 UTF-8、带 BOM 的 UTF-16、GB18030 和 Big5 `.txt`/`.md`，按文件输出：
 
@@ -169,6 +171,8 @@ python scripts/corpus_index.py search work/corpus-index.jsonl --query-file suppl
 
 ## 对照作者
 
+有封存留出集时，不在初稿前运行读取完整目标源文件的 contrast 命令；先在分析索引与对照索引之间做同条件语义比较。下述全源文件统计仅用于无留出运行，或解封后单独的探索分析；不能用看到留出后的新规则声称独立预测成功。
+
 用户同时提供目标作者和对照作者语料时，先按相近年代、题材、场景和篇幅分组，再运行：
 
 ```bash
@@ -201,9 +205,17 @@ python scripts/compare_style.py contrast --target target --control control --tar
 - `holdout_status`：`passed`、`partial`、`failed`、`not_tested` 或 `not_applicable`；
 - `distinctiveness_status`：有用户提供的对照语料时为 `supported`、`shared` 或 `uncertain`，否则固定为 `not_tested`。
 
-可信度不只写高、中、低，还必须写理由：高可信度需要在所声称层级上具有广泛覆盖、分离证据一致，并且没有无法解释的留出失败；中可信度表示重复存在但覆盖较窄、条件较强或未做留出；低可信度表示证据稀少、噪音明显或反例冲突。
+可信度不只写高、中、低，还必须写理由：高可信度需要在所声称层级上广泛覆盖、分离证据一致、完整反例搜索；有留出时必须 passed，无留出时必须 full_corpus 且说明没有独立验证；中可信度表示重复存在但覆盖较窄、条件较强或未做留出；低可信度表示证据稀少、噪音明显或反例冲突。
 
 ## 留出验证
+
+只读分析索引归纳初稿；保存 `provisional-profile.json` 后运行：
+
+```text
+python scripts/corpus_index.py reveal-holdout --holdout-index work/holdout-index.jsonl --commitment work/holdout-commitment.json --provisional-profile work/provisional-profile.json --output work/holdout-reveal.json
+```
+
+之后才读取留出正文。最终画像保存初稿文件 SHA-256；初稿、承诺、解封记录与留出索引一起交给完整门禁。该机制是可审计的文件与流程约束，不是操作系统访问隔离，也不能证明模型预训练未见过原文。人工/模型为标注场景而已经读过的正文不能再称为未见留出；需要使用用户预标注且未展示正文的样本，或保留污染说明并降低结论。解封后变化的规则不得继续使用 passed。
 
 语料至少包含 10 个带 `scene_id` 的可分离场景组时，在归纳最终规则之前按作品和主要场景类型预留约 20%，且不少于 2 个完整场景组，不用它们建立画像。场景不足或场景 ID 缺失时不宣称完成场景级留出，将相应 `holdout_status` 标为 `not_tested` 并降低可信度。画像完成后，对每条规则逐一把留出样本标为 `matched`、`missed`、`contradicted` 或 `not_applicable`，并记录适用、命中、漏判、冲突和不适用的去重样本数。`passed` 只允许全部适用留出样本都命中；不能用一条正例代替完整检查。随后再检查：
 
